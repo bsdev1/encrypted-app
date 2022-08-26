@@ -1,0 +1,367 @@
+<template>
+  <div class="mx-auto mt-7 mb-6 px-6 pb-6" v-if="user" id="dashboard">
+    <div class="d-flex">
+      <div class="my-auto mr-7">Hello, <b>{{ user.username }}</b>! &nbsp; {{ date }}</div>
+      <v-btn class="ml-auto" @click="logout">Log Out</v-btn>
+    </div>
+    <div class="mt-4">
+      <div class="d-flex" v-if="loading">
+        <v-progress-circular indeterminate></v-progress-circular>
+        <div class="ml-5 my-auto">Loading Messages</div>
+      </div>
+      <div v-else>
+        <Messages v-if="messages.length" :messages="messages" />
+        <div v-else>
+          No Messages
+        </div>
+        <v-slide-y-transition>
+          <v-alert class="alert_error mt-6 mb-5" type="error" color="red" v-if="error">{{ error }}</v-alert>
+        </v-slide-y-transition>
+        <form @submit.prevent="sendMessage" class="d-flex mt-5 send_message_form">
+          <v-file-input
+            v-model="files"
+            hide-details
+            width="30"
+            hide-input
+            solo
+            multiple
+            style="flex: 0"
+          />
+          <v-text-field :disabled="sendingMessage" v-model="message" label="Message" solo ref="message" placeholder="Type In Your Message" hide-details></v-text-field>
+          <v-btn type="submit" height="48" width="100" class="ml-5 my-auto" :loading="sendingMessage">Send</v-btn>
+        </form>
+        <div class="drop__files mt-5 pa-3" @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)" @dragover="fileDragOver">Drop Files In Here</div>
+        <Files :files="files" class="mt-4 mb-7" />
+        <div class="text-caption mt-5">Hide it away from other people or share with someone you trust | want to share messages with.</div>
+        <div class="d-flex mt-2">
+          <v-text-field required @input="keyChange" :disabled="sendingMessage || keyFieldDisabled" v-model="key" label="Your Key" solo placeholder="Type In Your Key" hide-details></v-text-field>
+          <v-btn class="ml-5" height="48" width="100" @click="copyToClipboard">Copy</v-btn>
+        </div>
+        <v-checkbox
+          hide-details
+          class="mb-6 mt-3"
+          @change="changeCheckbox"
+          v-model="keyFieldDisabled"
+          :label="`${keyFieldDisabled ? 'Enable Key Field' : 'Disable Key Field'}`"
+        ></v-checkbox>
+        <div v-if="qrCode" class="mb-5" style="position: relative; width: 148px">
+          <img :src="qrCode" style="border-radius: 3px" />
+          <div style="background: white; padding: 7px 10px 0 10px; border-radius: 100px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%)">
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+              width="20" height="25" viewBox="0 0 601 601">
+
+                <path d="M68.443,565.926c6.316,0,12.491-1.148,18.357-3.402c2.408-0.928,4.915-1.439,7.06-1.439c1.444,0,3.394,0.23,4.483,1.32
+                  l29.587,29.584c5.955,5.951,13.868,9.23,22.283,9.23s16.328-3.275,22.283-9.23l27.255-27.256
+                  c5.961-5.945,9.248-13.865,9.248-22.287c0-8.42-3.29-16.336-9.257-22.291l-29.575-29.574c-1.462-1.463-1.466-3.848-0.003-5.312
+                  l4.691-4.703c0.899-0.902,1.925-1.094,2.625-1.094s1.723,0.191,2.619,1.09l29.612,29.652c5.958,5.957,13.874,9.238,22.289,9.238
+                  s16.331-3.281,22.283-9.236l27.255-27.252c12.207-12.326,12.207-32.314,0.043-44.596l-29.63-29.631
+                  c-0.906-0.902-1.096-1.938-1.096-2.645c0-0.705,0.19-1.736,1.096-2.643l118.106-118.125c1.57-1.567,4.793-2.623,8.018-2.623
+                  c1.678,0,3.309,0.282,4.594,0.79c17.467,6.916,35.842,10.422,54.611,10.422c38.994,0,75.656-15.162,103.236-42.693
+                  c57.344-57.427,57.34-150.775,0.006-208.107C512.719,15.312,475.754,0,436.432,0c-39.32,0-76.285,15.309-104.088,43.112
+                  c-41.231,41.228-53.894,103.159-32.266,157.777c1.573,3.972,0.683,10.104-1.83,12.619L32.531,479.281
+                  c-9.565,9.555-14.835,22.311-14.835,35.912s5.272,26.355,14.841,35.916C42.087,560.66,54.841,565.926,68.443,565.926z
+                  M390.866,147.162c0-12.207,4.725-23.651,13.299-32.228c8.613-8.611,20.07-13.357,32.268-13.357
+                  c12.195,0,23.654,4.743,32.268,13.357c8.578,8.577,13.299,20.021,13.299,32.228c0,12.206-4.725,23.651-13.299,32.228
+                  c-8.602,8.571-20.064,13.302-32.268,13.302s-23.666-4.728-32.279-13.314C395.588,170.815,390.866,159.371,390.866,147.162z"/>
+            </svg>
+          </div>
+        </div>
+        <div v-else>
+          Loading QR...
+        </div>
+        <div class="d-flex flex-column">
+          <v-btn @click="generateNewKey" v-if="!keyFieldDisabled">Generate Key</v-btn>
+          <v-btn :class="`${!keyFieldDisabled ? 'mt-3' : 'mb-3'}`" v-if="key && messages.length">Prune Messages For That Key</v-btn>
+          <v-btn :class="`${!keyFieldDisabled ? 'mt-3' : ''}`" v-if="allMessages.length">Prune Messages For All Keys</v-btn>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+  import router from '@/plugins/router';
+  import moment from 'moment';
+  import { mapActions, mapMutations, mapState } from 'vuex';
+  import cryptoJS from 'crypto-js';
+  import Messages from '@/components/Messages.vue';
+  import Files from './Files.vue';
+  import qrcode from 'qrcode';
+
+  function encrypt(data, encryptKey) {
+    return cryptoJS.AES.encrypt(JSON.stringify(data), encryptKey).toString();
+  }
+
+  function decrypt(data, decryptKey) {
+    try {
+      const dataBytes = cryptoJS.AES.decrypt(data.toString(), decryptKey);
+      const decryptedData = dataBytes.toString(cryptoJS.enc.Utf8);
+      if(decryptedData) return JSON.parse(decryptedData);
+    } catch {
+      return null;
+    }
+  }
+
+  export default {
+    name: 'Dashboard',
+    components: { Messages, Files },
+    data: () => ({
+      date: null,
+      message: null,
+      error: null,
+      qrCode: null,
+      key: localStorage.getItem('key'),
+      loading: false,
+      sendingMessage: false,
+      keyFieldDisabled: localStorage.getItem('keyFieldDisabled') == 'true',
+      allMessages: [],
+      messages: [],
+    }),
+    async created() {
+      const { user, socket, key } = this;
+      if(!user) return router.push('/login');
+      if(!key || key.length < 43) {
+        const AES_KEY = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+        const newKey = await crypto.subtle.exportKey('jwk', AES_KEY);
+        this.key = newKey.k;
+        localStorage.setItem('key', newKey.k);
+      }
+      this.date = moment().format('dddd, MMMM Do YYYY, h:mm:ss A');
+      setInterval(() => this.date = moment().format('dddd, MMMM Do YYYY, h:mm:ss A'), 1000);
+      this.loading = true;
+      await this.setQR(key);
+      const messages = await this.handleGetMessages();
+      this.loading = false;
+      await new Promise(resolve => {
+        this.allMessages = messages;
+        this.messages = messages.map(message => ({ ...message, content: decrypt(message.content, this.key), fileDescriptions: message.fileDescriptions.map(({ fileName, fileType, fileSize }) => ({ fileName: decrypt(fileName, key), fileType: decrypt(fileType, key), fileSize: decrypt(fileSize, key) })) })).filter(({ content }) => content);
+        resolve();
+      });
+      let messagesElement = document.querySelector('#messages');
+      messagesElement?.scrollTo({ top: messagesElement.scrollHeight, behavior: 'smooth' });
+      socket.on('newMessage', async newMessage => {
+        const decryptedContent = decrypt(newMessage.content, this.key);
+        if(decryptedContent && this.key) {
+          this.error = null;
+
+          const importedKey = await crypto.subtle.importKey(
+            'jwk',
+            {
+              kty: 'oct',
+              k: key,
+              alg: 'A256GCM',
+              ext: true,
+            },
+            { name: 'AES-GCM' },
+            false,
+            ['encrypt', 'decrypt']
+          );
+
+          const files = [];
+
+          for(const { iv, encrypted_content, fileName, fileType } of newMessage.files) {
+            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted_content);
+            const name = decrypt(fileName, key);
+            const type = decrypt(fileType, key);
+
+            files.push({ src: URL.createObjectURL(new File([decrypted], name, { type })), name, type });
+          }
+
+          const message = {
+            ...newMessage,
+            content: decryptedContent,
+            files
+          };
+          await new Promise(resolve => {
+            this.messages.push(message);
+            this.allMessages.push(newMessage);
+            resolve();
+          });
+          const lastMessage = [...document.querySelectorAll('.message')].pop();
+          const lastMessageHeight = parseFloat(getComputedStyle(lastMessage).height.split('px')[0]);
+          messagesElement = document.querySelector('#messages');
+          const { scrollHeight, scrollTop, clientHeight } = messagesElement;
+          if(this.allMessages.length > 8) return messagesElement.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+          if(scrollHeight - (scrollTop + lastMessageHeight) == clientHeight) messagesElement.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+          return;
+        }
+        if(!this.key && !this.error) this.error = 'Key cannot be empty!';
+        if(key.length < 43) this.error = 'Key must be 43 length or more!';
+        this.allMessages.push(newMessage);
+      });
+    },
+    methods: {
+      async sendMessage() {
+        let { message, key, files } = this;
+        if(!message?.trim()) return this.error = 'Message cannot be empty!';
+        if(!key) return this.error = 'Key cannot be empty!';
+        if(key.length < 43) return this.error = 'Key must be 43 length or more!';
+        this.error = null;
+        this.sendingMessage = true;
+        message = encrypt(message, key);
+
+        let encryptedFiles = [];
+
+        const importedKey = await crypto.subtle.importKey(
+          'jwk',
+          {
+            kty: 'oct',
+            k: key,
+            alg: 'A256GCM',
+            ext: true,
+          },
+          { name: 'AES-GCM' },
+          false,
+          ['encrypt', 'decrypt']
+        );
+
+        for(const file of files) {
+          const fileContents = new Uint8Array(await file.arrayBuffer());
+
+          let iv = crypto.getRandomValues(new Uint8Array(16));
+
+          const encrypted_content = await crypto.subtle.encrypt(
+            {
+              name: 'AES-GCM',
+              iv
+            },
+            importedKey,
+            fileContents,
+          );
+
+          const { name, type, size } = file;
+
+          const fileName = encrypt(name, key);
+          const fileType = encrypt(type, key);
+          const fileSize = encrypt(size, key);
+          const uuid = crypto.randomUUID();
+
+          encryptedFiles.push({ uuid, fileName, fileSize, iv, fileType, encrypted_content });
+        }
+
+        const newMessage = await this.handleSendMessage({ message, files: encryptedFiles });
+
+        await new Promise(resolve => {
+          this.socket.emit('upload', newMessage.id, encryptedFiles, () => resolve());
+        });
+
+        this.message = null;
+        this.sendingMessage = false;
+
+        let tempFiles = [];
+
+        for(const { iv, encrypted_content, fileName, fileType } of encryptedFiles) {
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted_content);
+          const name = decrypt(fileName, key);
+          const type = decrypt(fileType, key);
+
+          tempFiles.push({ src: URL.createObjectURL(new File([decrypted], name, { type })), name, type });
+        }
+
+        files = tempFiles;
+        tempFiles = [];
+
+        this.setFiles([]);
+
+        const msg = { ...newMessage, files, content: decrypt(newMessage.content, key) };
+        await new Promise(resolve => {
+          this.messages.push(msg);
+          this.allMessages.push(newMessage);
+          resolve();
+        });
+
+        const messages = document.querySelector('#messages');
+        if(messages) messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
+      },
+      fileDrop({ items, files }) {
+        if(!items) files = [...files];
+        else files = [...items].filter(item => item.kind == 'file').map(file => file.getAsFile());
+        this.setFiles(files);
+      },
+      fileDragOver(e) {
+        e.preventDefault();
+      },
+      async keyChange() {
+        const { key } = this;
+        if(!key) return this.error = 'Key cannot be empty!';
+        if(key.length < 43) return this.error = 'Key must be 43 length or more!';
+        this.error = null;
+        await new Promise(resolve => {
+          localStorage.setItem('key', key);
+          this.messages = this.allMessages.map(message => ({ ...message, content: decrypt(message.content, key) })).filter(({ content }) => content);
+          resolve();
+        });
+
+        const messages = document.querySelector('#messages');
+        if(messages) messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
+      },
+      changeCheckbox() {
+        localStorage.setItem('keyFieldDisabled', this.keyFieldDisabled);
+      },
+      async setQR(data) {
+        this.qrCode = null;
+        const qr = await qrcode.toDataURL(data, { margin: 2, width: 148 });
+        this.qrCode = qr;
+      },
+      async generateNewKey() {
+        const AES_KEY = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+        const exportedKey = await crypto.subtle.exportKey('jwk', AES_KEY);
+        this.key = exportedKey.k;
+        await this.setQR(this.key);
+        this.keyChange();
+        this.copyToClipboard();
+      },
+      async copyToClipboard() {
+        await navigator.clipboard.writeText(this.key);
+        this.$notify({
+          text: 'Copied your key to the clipboard.',
+          type: 'success'
+        });
+      },
+      async logout() {
+        await this.handleLogout();
+      },
+      ...mapActions(['handleGetMessages', 'handleSendMessage', 'handleLogout']),
+      ...mapMutations(['setFiles'])
+    },
+    computed: {
+      ...mapState(['user', 'socket', 'files']),
+      files: {
+        get() {
+          return this.$store.state.files;
+        },
+        set(files) {
+          this.$store.commit('setFiles', files);
+        }
+      }
+    }
+  }
+</script>
+
+<style lang="scss" scoped>
+  #dashboard {
+    width: 1000px;
+  }
+
+  .alert_error {
+    color: #FFF !important;
+  }
+
+  .send_message_form {
+    width: initial;
+  }
+
+  .drop__files {
+    background-image: linear-gradient(to left, #303030, #202020);
+    border-radius: 5px;
+    font-weight: bold;
+    width: 200px;
+    text-align: center;
+  }
+
+  @media screen and (max-width: 1024px) {
+    #dashboard {
+      width: 100%;
+    }
+  }
+</style>

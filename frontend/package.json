@@ -1,0 +1,63 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "@mdi/js": "^7.0.96",
+    "axios": "^0.27.2",
+    "core-js": "^3.8.3",
+    "crypto-js": "^4.1.1",
+    "filesize": "^9.0.11",
+    "hex-encode-decode": "^1.0.0",
+    "lz-string": "^1.4.4",
+    "mdi-vue": "^3.0.13",
+    "moment": "^2.29.4",
+    "pako": "^2.0.4",
+    "qrcode": "^1.5.1",
+    "socket.io-client": "^4.5.1",
+    "timeago.js": "^4.0.2",
+    "vue": "^2.6.14",
+    "vue-notification": "^1.3.20",
+    "vue-router": "3.6.0",
+    "vuetify": "^2.6.0",
+    "vuex": "3.6.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.12.16",
+    "@babel/eslint-parser": "^7.12.16",
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-service": "~5.0.0",
+    "eslint": "^7.32.0",
+    "eslint-plugin-vue": "^8.0.3",
+    "node-sass": "^7.0.1",
+    "sass": "~1.32.0",
+    "sass-loader": "^13.0.2",
+    "vue-cli-plugin-vuetify": "~2.5.4",
+    "vue-template-compiler": "^2.6.14",
+    "vuetify-loader": "^1.7.0"
+  },
+  "eslintConfig": {
+    "root": true,
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "plugin:vue/essential",
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "parser": "@babel/eslint-parser"
+    },
+    "rules": {}
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
+}
