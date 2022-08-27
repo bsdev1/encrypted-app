@@ -234,9 +234,8 @@
           const fileName = encrypt(name, key);
           const fileType = encrypt(type, key);
           const fileSize = encrypt(size, key);
-          const uuid = crypto.randomUUID();
 
-          encryptedFiles.push({ uuid, fileName, fileSize, iv, fileType, encrypted_content });
+          encryptedFiles.push({ fileName, fileSize, iv, fileType, encrypted_content });
         }
 
         const newMessage = await this.handleSendMessage({ message, files: encryptedFiles });

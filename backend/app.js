@@ -23,6 +23,7 @@ const Message = require('./models/message');
 const File = require('./models/file');
 const fs = require('fs/promises');
 const history = require('connect-history-api-fallback');
+const uuid = require('uuid');
 
 passportAuth(passport);
 
@@ -58,7 +59,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 if(process.env.NODE_ENV == 'production') {
-  app.get('/', (req, res) => {
+  app.get('/', (_, res) => {
     res.sendFile(__dirname + '/index.html');
   });
 }
@@ -82,9 +83,9 @@ io.on('connection', socket => {
 
   socket.on('upload', async (message, encryptedFiles, cb) => {
     const author = socket.request.user.id;
+    encryptedFiles = encryptedFiles.map(encryptedFile => ({ ...encryptedFile, uuid: uuid.v4(), author, message }));
     for(const { uuid, encrypted_content } of encryptedFiles) await fs.writeFile(`./public/usersFiles/${uuid}.encrypted`, encrypted_content);
     encryptedFiles.forEach(file => delete file.encrypted_content);
-    encryptedFiles = encryptedFiles.map(encryptedFile => ({ ...encryptedFile, author, message }));
     await File.insertMany(encryptedFiles);
     cb();
   });
