@@ -55,12 +55,12 @@ const store = new Vuex.Store({
     },
     async getDashboard({ state, commit, dispatch }) {
       const { data: { user, success } } = await request.get('/');
-      if(success == false && state.path != 'Register') {
+      if(success == false && state.path != 'Register' && state.path != 'Login') {
         router.push('/login');
         commit('setSocket', null);
         return commit('setUser', null);
       }
-      if(!state.user) dispatch('initSocket', user);
+      if(success && !state.user) dispatch('initSocket', user);
     },
     async handleLogin({ state, dispatch }, { username, password }) {
       const { data: { errorMessage, user } } = await request.post('/login', { username, password });
