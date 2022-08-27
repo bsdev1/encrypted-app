@@ -60,7 +60,7 @@ const store = new Vuex.Store({
         commit('setSocket', null);
         return commit('setUser', null);
       }
-      if(success && !state.user) dispatch('initSocket', user);
+      if(user && !state.user) dispatch('initSocket', user);
     },
     async handleLogin({ state, dispatch }, { username, password }) {
       const { data: { errorMessage, user } } = await request.post('/login', { username, password });

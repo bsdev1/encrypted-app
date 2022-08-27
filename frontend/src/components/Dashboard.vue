@@ -70,7 +70,7 @@
           Loading QR...
         </div>
         <div class="d-flex flex-column">
-          <v-btn @click="generateNewKey" v-if="!keyFieldDisabled">Generate Key</v-btn>
+          <v-btn @click="generateNewKey" v-if="!keyFieldDisabled">Generate New Key</v-btn>
           <v-btn :class="`${!keyFieldDisabled ? 'mt-3' : 'mb-3'}`" v-if="key && messages.length">Prune Messages For That Key</v-btn>
           <v-btn :class="`${!keyFieldDisabled ? 'mt-3' : ''}`" v-if="allMessages.length">Prune Messages For All Keys</v-btn>
         </div>
@@ -129,7 +129,7 @@
       this.date = moment().format('dddd, MMMM Do YYYY, h:mm:ss A');
       setInterval(() => this.date = moment().format('dddd, MMMM Do YYYY, h:mm:ss A'), 1000);
       this.loading = true;
-      await this.setQR(key);
+      await this.setQR(this.key);
       const messages = await this.handleGetMessages();
       this.loading = false;
       await new Promise(resolve => {
