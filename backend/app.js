@@ -21,7 +21,9 @@ const passport = require('passport');
 const { passportAuth } = require('./utils/auth');
 const Message = require('./models/message');
 const File = require('./models/file');
+const FileUpload = require('./models/fileUpload');
 const fs = require('fs/promises');
+const fsDefault = require('fs');
 const history = require('connect-history-api-fallback');
 const uuid = require('uuid');
 
@@ -50,6 +52,13 @@ if(process.env.NODE_ENV == 'production') {
     ]
   }));
 }
+
+app.get('/usersFiles/:file', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', frontendUrl);
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  next();
+});
+
 app.use(sessionMiddleware);
 app.use(express.json());
 app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public'));
@@ -66,6 +75,7 @@ if(process.env.NODE_ENV == 'production') {
 
 // Routes
 const indexRouter = require('./routes');
+const { memoryUsage } = require('process');
 app.use('/api', indexRouter);
 
 const wrap = middleware => (socket, next) => middleware(socket.request, {}, next);
@@ -80,23 +90,77 @@ io.on('connection', socket => {
   socket.on('connectUser', () => {
     socket.join(socket.request.user.id);
   });
-
-  socket.on('upload', async (message, encryptedFiles, cb) => {
+  
+  socket.on('disconnect', async () => {
     const author = socket.request.user.id;
-    encryptedFiles = encryptedFiles.map(encryptedFile => ({ ...encryptedFile, uuid: uuid.v4(), author, message }));
-    for(const { uuid, encrypted_content } of encryptedFiles) await fs.writeFile(`./public/usersFiles/${uuid}.encrypted`, encrypted_content);
-    encryptedFiles.forEach(file => delete file.encrypted_content);
-    await File.insertMany(encryptedFiles);
+    const fileUploads = await FileUpload.find({ author, finished: false });
+    for(const { fileUUID } of fileUploads) {
+      const path = `./public/usersFiles/${fileUUID}.encrypted`;
+      if(fsDefault.existsSync(path)) fsDefault.unlinkSync(path);
+    }
+    await FileUpload.deleteMany({ author, finished: false });
+  });
+
+  socket.on('createNewFileUpload', async cb => {
+    const author = socket.request.user.id, fileUUID = uuid.v4();
+    await FileUpload.create({ fileUUID, author });
+    cb(fileUUID);
+  });
+
+  socket.on('getChunks', async (uuid, cb) => {
+    if(!fsDefault.existsSync(`./public/usersFiles/${uuid}.encrypted`)) {
+      await File.deleteOne({ uuid });
+      return cb(404);
+    }
+    const CHUNK_SIZE = (1024 * 512) + 32;
+    const encryptedFile = new Uint8Array(await fs.readFile(`./public/usersFiles/${uuid}.encrypted`));
+    let { chunks, fileName, fileType } = await File.findOne({ uuid });
+    const [doubledChunks] = chunks;
+
+    const [chunkSize, doubledChunksLength] = doubledChunks.split('-');
+    
+    chunks = Array.from({ length: doubledChunksLength }, () => parseInt(chunkSize)).concat(chunks.slice(1, chunks.length));
+    
+    let offset = 0;
+    
+    for(let i = 0; i < chunks.length; i++) {
+      const chunk = encryptedFile.slice(offset, offset + chunks[i]);
+      const iv = chunk.slice(0, 16);
+      const encrypted = chunk.slice(16, chunk.length);
+      const finished = encryptedFile.length < CHUNK_SIZE ? true : i + 1 == chunks.length;
+      const obj = { iv, encrypted, finished, uuid };
+      if(finished) {
+        obj.fileName = fileName;
+        obj.fileType = fileType;
+      }
+      socket.emit('chunk', obj);
+      offset += chunks[i];
+      if(obj.fileName) cb();
+    }
+  });
+
+  socket.on('uploadChunk', async ({ fileUUID, percentage, encryptedChunk }, cb) => {
+    if(percentage == 100) {
+      await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk);
+      const author = socket.request.user.id;
+      await FileUpload.deleteOne({ fileUUID, author });
+      return cb();
+    }
+    await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk);
     cb();
   });
 
-  socket.on('newMessage', async ({ message, files }, cb) => {
+  socket.on('newMessage', async ({ message, files, fileDescriptions }, cb) => {
     if(!message?.trim()) return cb();
     const { id, username, createdAt: userCreatedAt } = socket.request.user;
-    const fileDescriptions = files.map(({ fileName, fileType, fileSize }) => ({ fileName, fileType, fileSize }));
     const { id: messageId, content, createdAt } = await Message.create({ filesCount: files.length, fileDescriptions, content: message, author: id });
 
     const author = { id, username, createdAt: userCreatedAt };
+
+    files = files.map(file => ({ ...file, author: id, message: messageId }));
+
+    await File.insertMany(files);
+    await FileUpload.deleteMany({ author: id });
 
     const msg = { id: messageId, content, fileDescriptions: [], author, files, filesCount: files.length, createdAt };
     socket.to(socket.request.user.id).emit('newMessage', msg);

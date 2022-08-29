@@ -9,6 +9,11 @@ const request = axios.create({
   withCredentials: true
 });
 
+const fileRequest = axios.create({
+  baseURL: process.env.VUE_APP_BACKEND,
+  withCredentials: true
+});
+
 Vue.use(Vuex);
 
 function decrypt(data, decryptKey) {
@@ -21,13 +26,71 @@ function decrypt(data, decryptKey) {
   }
 }
 
+function concatArrayBuffers(bufs) {
+  let offset = 0, bytes = 0;
+  bufs.map(buf => {
+    bytes += buf.byteLength;
+    return buf;
+  });
+
+  var buffer = new ArrayBuffer(bytes);
+  var store = new Uint8Array(buffer);
+
+  bufs.forEach(buf => {
+    store.set(new Uint8Array(buf.buffer || buf, buf.byteOffset), offset);
+    offset += buf.byteLength;
+  });
+
+  return buffer;
+}
+
 const store = new Vuex.Store({
   state: {
     user: null,
     newUser: null,
     socket: null,
     path: null,
+    currentMessage: null,
     files: [],
+    tempDecryptedFiles: [],
+    treeItems: [
+      // {
+      //   name: 'TXT',
+      //   children: [
+      //     {
+      //       name: 'favicon.ico',
+      //       file: 'png',
+      //     },
+      //   ],
+      // },
+      // {
+      //   name: 'PICS',
+      //   children: [
+      //     {
+      //       name: 'favicon.ico',
+      //       file: 'png',
+      //     },
+      //   ],
+      // },
+      // {
+      //   name: 'EXECUTABLES',
+      //   children: [
+      //     {
+      //       name: 'favicon.ico',
+      //       file: 'png',
+      //     },
+      //   ],
+      // },
+      // {
+      //   name: 'OTHER',
+      //   children: [
+      //     {
+      //       name: 'favicon.ico',
+      //       file: 'png',
+      //     },
+      //   ],
+      // },
+    ],
   },
   mutations: {
     setNewUser(state, newUser) {
@@ -44,6 +107,15 @@ const store = new Vuex.Store({
     },
     setFiles(state, files) {
       state.files = files;
+    },
+    setTempDecryptedFiles(state, tempDecryptedFiles) {
+      state.tempDecryptedFiles = tempDecryptedFiles;
+    },
+    setCurrentMessage(state, currentMessage) {
+      state.currentMessage = currentMessage;
+    },
+    setTreeItems(state, treeItems) {
+      state.treeItems = treeItems;
     }
   },
   actions: {
@@ -89,23 +161,59 @@ const store = new Vuex.Store({
       const { data: { messages } } = await request.get('/messages');
       return messages.map(message => ({ ...message, files: [] }));
     },
-    async handleShowFiles({ state }, { messageId, importedKey, key }) {
-      const { data: files } = await request.get(`/getFiles/${messageId}`);
-      const decryptedFiles = [];
-      for(let file of files) {
-        let { encrypted_content, iv, fileName, fileType } = file;
-        const name = decrypt(fileName, key);
-        const type = decrypt(fileType, key);
-        encrypted_content = new Uint8Array(encrypted_content.data);
-        iv = new Uint8Array(iv.data);
-        const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted_content);
-        decryptedFiles.push({ src: URL.createObjectURL(new File([decrypted], name, { type })), name, type });
-      }
-      return decryptedFiles;
+    async handleShowFiles({ state, commit }, { messageId, importedKey, key }) {
+      let { data: files } = await request.get(`/getFiles/${messageId}`);
+
+      if(!files.length) return [];
+
+      commit('setCurrentMessage', messageId);
+
+      let chunks = [];
+
+      await new Promise(async resolve => {
+        state.socket.on('chunk', async ({ iv, encrypted, finished, fileName, fileType, uuid }) => {
+          if(!finished) return chunks.push({ iv, encrypted });
+          const name = decrypt(fileName, key);
+          const type = decrypt(fileType, key);
+          if(chunks.length) {
+            let decryptedChunks = [];
+            for(const { iv, encrypted } of chunks) {
+              const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+              decryptedChunks.push(decrypted);
+            }
+            chunks = [];
+            const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
+            const src = URL.createObjectURL(file);
+            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+            if(state.tempDecryptedFiles.length == files.length) resolve();
+          } else {
+            chunks = [];
+            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+            const file = new File([decrypted], name, { type });
+            const src = URL.createObjectURL(file);
+            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+            if(state.tempDecryptedFiles.length == files.length) resolve();
+          }
+        });
+  
+        for(const { uuid } of files) {
+          await new Promise(secondResolve => {
+            state.socket.emit('getChunks', uuid, error => {
+              if(error == 404) files = files.filter(file => file.uuid != uuid);
+              if(files.length) return secondResolve();
+              resolve();
+              secondResolve();
+            });
+          });
+        }
+      });
+    
+      state.socket.off('chunk');
+      return state.tempDecryptedFiles;
     },
-    async handleSendMessage({ state }, { message, files }) {
+    async handleSendMessage({ state }, { message, files, fileDescriptions }) {
       const newMessage = await new Promise(async resolve => {
-        state.socket.emit('newMessage', { message, files }, newMessage => resolve(newMessage));
+        state.socket.emit('newMessage', { message, files, fileDescriptions }, newMessage => resolve(newMessage));
       });
       return newMessage;
     }

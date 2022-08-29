@@ -31,6 +31,9 @@
           <v-btn type="submit" height="48" width="100" class="ml-5 my-auto" :loading="sendingMessage">Send</v-btn>
         </form>
         <div class="drop__files mt-5 pa-3" @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)" @dragover="fileDragOver">Drop Files In Here</div>
+        <div class="mt-4" style="width: 300px; border-radius: 100px; background: #202020">
+          <div :class="progress ? 'pa-2 px-4 progress' : 'progress'" :style="`width: ${progress}%; transition: 0.3s ease; border-radius: 100px; background: #303030;`"><b v-if="progress">{{ progress }}%</b></div>
+        </div>
         <Files :files="files" class="mt-4 mb-7" />
         <div class="text-caption mt-5">Hide it away from other people or share with someone you trust | want to share messages with.</div>
         <div class="d-flex mt-2">
@@ -116,6 +119,7 @@
       keyFieldDisabled: localStorage.getItem('keyFieldDisabled') == 'true',
       allMessages: [],
       messages: [],
+      progress: 0,
     }),
     async created() {
       const { user, socket, key } = this;
@@ -134,7 +138,7 @@
       this.loading = false;
       await new Promise(resolve => {
         this.allMessages = messages;
-        this.messages = messages.map(message => ({ ...message, content: decrypt(message.content, this.key), fileDescriptions: message.fileDescriptions.map(({ fileName, fileType, fileSize }) => ({ fileName: decrypt(fileName, key), fileType: decrypt(fileType, key), fileSize: decrypt(fileSize, key) })) })).filter(({ content }) => content);
+        this.messages = messages.map(message => ({ ...message, content: decrypt(message.content, this.key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content);
         resolve();
       });
       let messagesElement = document.querySelector('#messages');
@@ -185,8 +189,6 @@
           if(scrollHeight - (scrollTop + lastMessageHeight) == clientHeight) messagesElement.scrollTo({ top: scrollHeight, behavior: 'smooth' });
           return;
         }
-        if(!this.key && !this.error) this.error = 'Key cannot be empty!';
-        if(key.length < 43) this.error = 'Key must be 43 length or more!';
         this.allMessages.push(newMessage);
       });
     },
@@ -199,8 +201,6 @@
         this.error = null;
         this.sendingMessage = true;
         message = encrypt(message, key);
-
-        let encryptedFiles = [];
 
         const importedKey = await crypto.subtle.importKey(
           'jwk',
@@ -215,54 +215,105 @@
           ['encrypt', 'decrypt']
         );
 
+        const appendBuffer = function(appendBuffer, buffer) {
+          const array = new Uint8Array(appendBuffer.byteLength + buffer.byteLength);
+          array.set(new Uint8Array(appendBuffer), 0);
+          array.set(new Uint8Array(buffer), appendBuffer.byteLength);
+          return array;
+        };
+
+        const CHUNK_SIZE = 1024 * 512, encryptedFiles = [];
+        let chunks = [], children = [], treeItems = [];
+
+        const appendChildrens = (folderType, { name, type, size, uuid }) => {
+          children.push({ name, type, size, uuid });
+          if(!treeItems.find(item => item.name == folderType)) treeItems = [...treeItems, { name: folderType, children }];
+          else treeItems = treeItems.map(item => item.name == folderType ? ({ ...item, children: [...item.children, { uuid, size, name, type }] }) : item);
+        }
+
         for(const file of files) {
-          const fileContents = new Uint8Array(await file.arrayBuffer());
-
-          let iv = crypto.getRandomValues(new Uint8Array(16));
-
-          const encrypted_content = await crypto.subtle.encrypt(
-            {
-              name: 'AES-GCM',
-              iv
-            },
-            importedKey,
-            fileContents,
-          );
+          let offset = 0, progress = [], fileUUID;
 
           const { name, type, size } = file;
 
           const fileName = encrypt(name, key);
           const fileType = encrypt(type, key);
-          const fileSize = encrypt(size, key);
 
-          encryptedFiles.push({ fileName, fileSize, iv, fileType, encrypted_content });
+          await new Promise(resolve => {
+            this.socket.emit('createNewFileUpload', uuid => {
+              fileUUID = uuid;
+              resolve();
+            });
+          });
+
+          const fileContents = new Uint8Array(await file.arrayBuffer());
+          const chunksLength = fileContents.length / CHUNK_SIZE;
+
+          for(let i = 0; i < chunksLength; i++) {
+            const sequenceNumber = offset / CHUNK_SIZE;
+            const chunk = fileContents.slice(offset, i + 1 == chunksLength.toFixed(0) ? fileContents.length : offset + CHUNK_SIZE);
+            const iv = crypto.getRandomValues(new Uint8Array(16));
+            const encryptedChunk = await crypto.subtle.encrypt(
+              {
+                name: 'AES-GCM',
+                iv
+              },
+              importedKey,
+              chunk,
+            );
+            const percentage = fileContents.length < CHUNK_SIZE ? 100 : ((sequenceNumber / chunksLength.toFixed(0)) * 100).toFixed(0);
+            if(!progress.includes(percentage)) {
+              progress.push(percentage);
+              this.progress = percentage;
+            }
+            await new Promise(resolve => {
+              this.socket.emit('uploadChunk', { fileUUID, percentage, encryptedChunk: appendBuffer(iv, encryptedChunk) }, () => resolve());
+            });
+            chunks.push(appendBuffer(iv, encryptedChunk));
+            offset += CHUNK_SIZE;
+          }
+
+          progress = [];
+          this.progress = 0;
+
+          const FIXED_CHUNK_SIZE = CHUNK_SIZE + 32;
+
+          const duplicatedChunkLengths = chunks.map(chunk => chunk.length).filter(chunk => chunk == FIXED_CHUNK_SIZE).length;
+          let chunkLengths = chunks.map(chunk => chunk.length).filter(chunk => chunk != FIXED_CHUNK_SIZE);
+
+          chunkLengths = [`${FIXED_CHUNK_SIZE}-${duplicatedChunkLengths}`].concat(chunkLengths);
+
+          encryptedFiles.push({ uuid: fileUUID, fileName, fileType, chunks: chunkLengths });
+          chunks = [];
+
+          const obj = { name, type, size, uuid: fileUUID };
+          if(type == 'text/plain') appendChildrens('TXT', obj);
+          else if(type.startsWith('image')) appendChildrens('PICS', obj);
+          else if(type.startsWith('video')) appendChildrens('VIDEOS', obj);
+          else if(type.startsWith('audio')) appendChildrens('SOUNDS', obj);
+          else if(type.startsWith('application/x-msdownload')) appendChildrens('EXECUTABLES', obj);
+          else appendChildrens('OTHER', obj);
+          children = [];
         }
 
-        const newMessage = await this.handleSendMessage({ message, files: encryptedFiles });
+        const fileDescriptions = treeItems.map(item => ({ name: encrypt(item.name, key), children: item.children.map(item => ({ ...item, type: encrypt(item.type, key), name: encrypt(item.name, key) })) }));
 
-        await new Promise(resolve => {
-          this.socket.emit('upload', newMessage.id, encryptedFiles, () => resolve());
-        });
+        const newMessage = await this.handleSendMessage({ message, files: encryptedFiles, fileDescriptions });
 
         this.message = null;
         this.sendingMessage = false;
 
-        let tempFiles = [];
-
-        for(const { iv, encrypted_content, fileName, fileType } of encryptedFiles) {
-          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted_content);
-          const name = decrypt(fileName, key);
-          const type = decrypt(fileType, key);
-
-          tempFiles.push({ src: URL.createObjectURL(new File([decrypted], name, { type })), name, type });
-        }
-
-        files = tempFiles;
-        tempFiles = [];
+        console.log(encryptedFiles);
+        
+        files = files.map((file, i) => {
+          const { name, type } = file;
+          const { uuid } = encryptedFiles[i];
+          return { src: URL.createObjectURL(new File([file], name, { type })), name, uuid, type, notFetched: true };
+        });
 
         this.setFiles([]);
 
-        const msg = { ...newMessage, files, content: decrypt(newMessage.content, key) };
+        const msg = { ...newMessage, files, fileDescriptions: treeItems, content: decrypt(newMessage.content, key) };
         await new Promise(resolve => {
           this.messages.push(msg);
           this.allMessages.push(newMessage);

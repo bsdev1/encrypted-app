@@ -2,29 +2,40 @@
   <div class="message pr-4 py-2">
     <div>by <b>{{ author.username }}</b> - {{ ago(createdAt) }}</div>
     {{ content }}<br>
-    <div class="d-flex flex-wrap mt-2" v-if="files.length">
-      <div v-for="({ src, name, type }, i) of files" :key="i">
-        <img :class="i + 1 > 1 ? 'ml-4 mb-3' : 'mb-3'" v-if="type.startsWith('image')" :src="src" style="max-width: 100%" height="150" />
-        <video class="ml-3 mb-3" v-else-if="type.startsWith('video')" controls style="max-width: 100%;" height="200">
-          <source :src="src" />
-        </video>
-        <div class="ml-6 mb-3" v-else>
-          <a :href="src" target="_blank">{{ name }}</a>
-        </div>
-      </div>
-    </div>
-    <div class="mt-2" v-else>
-      <div class="text-caption grey--text mb-1" v-for="({ fileName, fileType, fileSize }, i) of fileDescriptions" :key="i">
-        {{ fileName }} ({{ fileType }}, {{ filesize(fileSize) }}) 
-      </div>
-      <v-btn class="my-2" v-if="filesCount" :loading="fetchingFiles" @click="showFiles(id)">Show&nbsp;<b v-if="filesCount > 1">{{ filesCount }} Files</b><span v-else>File</span>&nbsp;({{ filesize(totalSize) }})</v-btn>
+    <div class="mt-2">
+      <div v-if="tempDecryptedFiles.length && currentMessage == id && percentage < 100">{{ percentage }}%</div>
+      <v-treeview item-key="id" :items="fileDescriptions" open-on-click rounded>
+        <template v-slot:label="{ item: { size, name, type, uuid } }">
+          <div v-if="name && uuid">
+            <div :class="((file(uuid) && currentMessage == id) || isFetchedFiles) && type.startsWith('image') ? 'pt-3' : ''">
+              {{ name }} ({{ type ? type : 'No Type' }}, {{ filesize(size) }})
+              <a target="_blank" class="ml-2" :href="fileSrc(uuid)" v-if="(file(uuid) && currentMessage == id) || isFetchedFiles">
+                Download
+              </a>
+              <div v-if="((file(uuid) && currentMessage == id) || isFetchedFiles) && type.startsWith('image')">
+                <img class="pa-4 ml-5" v-if="type.startsWith('image')" :src="fileSrc(uuid)" style="max-width: 100%" height="150" />
+              </div>
+            </div>
+          </div>
+          <div v-else>
+            {{ name }}
+          </div>
+        </template>
+        <template v-slot:prepend="{ item: { type, uuid }, open }">
+          <mdicon v-if="!type && !uuid" :name="open ? 'folder-open' : 'folder'" />
+          <mdicon :name="type.startsWith('image') ? 'file-image' : type.startsWith('audio') ? 'file-music' : type.startsWith('video') ? 'file-video' : type ? filesTypes[type] : 'file-question'" v-else>
+            {{ filesTypes[type] }}
+          </mdicon>
+        </template>
+      </v-treeview>
+      <v-btn class="my-2" v-if="filesCount && currentMessage != id && !isFetchedFiles" :loading="fetchingFiles" @click="showFiles(id)">Fetch&nbsp;File(s), {{ filesize(totalSize) }}</v-btn>
     </div>
   </div>
 </template>
 
 <script>
   import { format } from 'timeago.js';
-  import { mapActions } from 'vuex';
+  import { mapActions, mapMutations, mapState } from 'vuex';
   import filesize from 'filesize';
 
   export default {
@@ -34,6 +45,15 @@
       return {
         ...this.message,
         fetchingFiles: false,
+        filesTypes: {
+          'text/html': 'language-html5',
+          'text/javascript': 'nodejs',
+          'application/json': 'code-json',
+          'application/pdf': 'file-pdf',
+          'text/plain': 'file-document-outline',
+          'application/x-msdownload': 'file-download',
+          'application/vnd.ms-excel': 'file-excel'
+        }
       }
     },
     methods: {
@@ -57,12 +77,33 @@
         const files = await this.handleShowFiles({ messageId, importedKey, key });
         this.fetchingFiles = false;
         this.files = files;
+        this.setTempDecryptedFiles([]);
       },
+      ...mapMutations(['setTempDecryptedFiles']),
       ...mapActions(['handleShowFiles'])
     },
     computed: {
+      ...mapState(['tempDecryptedFiles', 'currentMessage', 'treeItems']),
       totalSize() {
-        return this.fileDescriptions.reduce((p, { fileSize }) => p + fileSize, 0);
+        let size = 0;
+        this.fileDescriptions.forEach(({ children }) => children.forEach(child => size += child.size));
+        return size;
+      },
+      percentage() {
+        return ((this.tempDecryptedFiles.length / this.filesCount) * 100).toFixed(0);
+      },
+      fileSrc() {
+        return function(uuid) {
+          return this.isFetchedFiles ? this.files.find(file => file.uuid == uuid).src : (this.files.length ? this.files : this.tempDecryptedFiles).find(file => file.uuid == uuid).src;
+        }
+      },
+      file() {
+        return function(uuid) {
+          return (this.files.length ? this.files : this.tempDecryptedFiles).find(file => file.uuid == uuid);
+        }
+      },
+      isFetchedFiles() {
+        return this.files.map(({ notFetched }) => notFetched).includes(true);
       }
     }
   }

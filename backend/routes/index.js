@@ -46,18 +46,23 @@ router.get('/messages', ensureAuthenticated, async (req, res) => {
 });
 
 router.get('/getFiles/:message', ensureAuthenticated, async (req, res) => {
-  const files = await File.find({ message: req.params.message });
-
-  const encryptedFiles = [];
-
-  for(let file of files) {
-    try {
-      const encrypted_content = await fs.readFile(`./public/usersFiles/${file.uuid}.encrypted`);
-      encryptedFiles.push({ ...file.toJSON(), encrypted_content });
-    } catch {}
-  }
-
-  res.json(encryptedFiles);
+  const files = await File.find({ message: req.params.message, author: req.user.id }).select('uuid fileType fileName -_id');
+  res.json(files);
 });
+
+// router.get('/getFiles/:message', ensureAuthenticated, async (req, res) => {
+//   const files = await File.find({ message: req.params.message, author: req.user.id });
+
+//   const encryptedFiles = [];
+
+//   for(let file of files) {
+//     try {
+//       const encrypted_content = await fs.readFile(`./public/usersFiles/${file.uuid}.encrypted`);
+//       encryptedFiles.push({ ...file.toJSON(), encrypted_content });
+//     } catch {}
+//   }
+
+//   res.json(encryptedFiles);
+// });
 
 module.exports = router;
