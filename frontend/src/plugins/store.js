@@ -51,46 +51,10 @@ const store = new Vuex.Store({
     socket: null,
     path: null,
     currentMessage: null,
+    currentFetchedFile: null,
     files: [],
     tempDecryptedFiles: [],
-    treeItems: [
-      // {
-      //   name: 'TXT',
-      //   children: [
-      //     {
-      //       name: 'favicon.ico',
-      //       file: 'png',
-      //     },
-      //   ],
-      // },
-      // {
-      //   name: 'PICS',
-      //   children: [
-      //     {
-      //       name: 'favicon.ico',
-      //       file: 'png',
-      //     },
-      //   ],
-      // },
-      // {
-      //   name: 'EXECUTABLES',
-      //   children: [
-      //     {
-      //       name: 'favicon.ico',
-      //       file: 'png',
-      //     },
-      //   ],
-      // },
-      // {
-      //   name: 'OTHER',
-      //   children: [
-      //     {
-      //       name: 'favicon.ico',
-      //       file: 'png',
-      //     },
-      //   ],
-      // },
-    ],
+    fetchingFiles: false,
   },
   mutations: {
     setNewUser(state, newUser) {
@@ -114,16 +78,35 @@ const store = new Vuex.Store({
     setCurrentMessage(state, currentMessage) {
       state.currentMessage = currentMessage;
     },
-    setTreeItems(state, treeItems) {
-      state.treeItems = treeItems;
+    setFetchingFiles(state, fetchingFiles) {
+      state.fetchingFiles = fetchingFiles;
+    },
+    setCurrentFetchedFile(state, currentFetchedFile) {
+      state.currentFetchedFile = currentFetchedFile;
     }
   },
   actions: {
-    initSocket({ commit }, user) {
+    async initSocket({ commit }, user) {
       const socket = io(process.env.VUE_APP_BACKEND, { withCredentials: true });
       commit('setUser', user);
       commit('setSocket', socket);
       socket.emit('connectUser');
+      if('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.register('../sw.js', {
+            scope: '/',
+          });
+          if (registration.installing) {
+            console.log('Service worker installing');
+          } else if (registration.waiting) {
+            console.log('Service worker installed');
+          } else if (registration.active) {
+            console.log('Service worker active');
+          }
+        } catch (error) {
+          console.error(`Registration failed with ${error}`);
+        }
+      }
     },
     async getDashboard({ state, commit, dispatch }) {
       const { data: { user, success } } = await request.get('/');
@@ -161,10 +144,12 @@ const store = new Vuex.Store({
       const { data: { messages } } = await request.get('/messages');
       return messages.map(message => ({ ...message, files: [] }));
     },
-    async handleShowFiles({ state, commit }, { messageId, importedKey, key }) {
+    async handleFetchFiles({ state, commit }, { messageId, importedKey, key }) {
       let { data: files } = await request.get(`/getFiles/${messageId}`);
 
       if(!files.length) return [];
+
+      files = files.filter(file => file.uuid != state.currentFetchedFile);
 
       commit('setCurrentMessage', messageId);
 
@@ -208,6 +193,46 @@ const store = new Vuex.Store({
         }
       });
     
+      state.socket.off('chunk');
+      return state.tempDecryptedFiles;
+    },
+    async handleFetchFile({ state, commit }, { messageId, uuid, importedKey, key }) {
+      commit('setCurrentMessage', messageId);
+      commit('setCurrentFetchedFile', uuid);
+
+      let chunks = [];
+
+      await new Promise(resolve => {
+        state.socket.on('chunk', async ({ iv, encrypted, finished, fileName, fileType, uuid }) => {
+          if(!finished) return chunks.push({ iv, encrypted });
+          const name = decrypt(fileName, key);
+          const type = decrypt(fileType, key);
+          if(chunks.length) {
+            let decryptedChunks = [];
+            for(const { iv, encrypted } of chunks) {
+              const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+              decryptedChunks.push(decrypted);
+            }
+            chunks = [];
+            const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
+            const src = URL.createObjectURL(file);
+            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+            resolve();
+          } else {
+            chunks = [];
+            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+            const file = new File([decrypted], name, { type });
+            const src = URL.createObjectURL(file);
+            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+            resolve();
+          }
+        });
+        
+        state.socket.emit('getChunks', uuid, error => {
+          if(error == 404) return resolve();
+        });
+      });
+
       state.socket.off('chunk');
       return state.tempDecryptedFiles;
     },

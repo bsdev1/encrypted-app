@@ -18,7 +18,7 @@
 
 <style>
   #messages {
-    height: 500px;
+    height: 600px;
     overflow-y: scroll;
   }
 </style>

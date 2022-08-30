@@ -75,7 +75,6 @@ if(process.env.NODE_ENV == 'production') {
 
 // Routes
 const indexRouter = require('./routes');
-const { memoryUsage } = require('process');
 app.use('/api', indexRouter);
 
 const wrap = middleware => (socket, next) => middleware(socket.request, {}, next);
@@ -161,9 +160,9 @@ io.on('connection', socket => {
 
     await File.insertMany(files);
     await FileUpload.deleteMany({ author: id });
-
-    const msg = { id: messageId, content, fileDescriptions: [], author, files, filesCount: files.length, createdAt };
-    socket.to(socket.request.user.id).emit('newMessage', msg);
+    
+    const msg = { id: messageId, content, fileDescriptions, author, files, filesCount: files.length, createdAt };
+    socket.to(id).emit('newMessage', msg);
     cb(msg);
   });
 

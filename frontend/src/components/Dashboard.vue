@@ -122,60 +122,122 @@
       progress: 0,
     }),
     async created() {
-      const { user, socket, key } = this;
+      let { user, socket, key } = this;
       if(!user) return router.push('/login');
       if(!key || key.length < 43) {
         const AES_KEY = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
         const newKey = await crypto.subtle.exportKey('jwk', AES_KEY);
         this.key = newKey.k;
+        key = newKey.k;
         localStorage.setItem('key', newKey.k);
       }
       this.date = moment().format('dddd, MMMM Do YYYY, h:mm:ss A');
       setInterval(() => this.date = moment().format('dddd, MMMM Do YYYY, h:mm:ss A'), 1000);
       this.loading = true;
-      await this.setQR(this.key);
+      await this.setQR(key);
       const messages = await this.handleGetMessages();
       this.loading = false;
       await new Promise(resolve => {
         this.allMessages = messages;
-        this.messages = messages.map(message => ({ ...message, content: decrypt(message.content, this.key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content);
+        this.messages = messages.map(message => ({ ...message, content: decrypt(message.content, key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content);
         resolve();
       });
       let messagesElement = document.querySelector('#messages');
       messagesElement?.scrollTo({ top: messagesElement.scrollHeight, behavior: 'smooth' });
+
+      const importedKey = await crypto.subtle.importKey(
+        'jwk',
+        {
+          kty: 'oct',
+          k: key,
+          alg: 'A256GCM',
+          ext: true,
+        },
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt', 'decrypt']
+      );
+
+      let chunks = [];
+
+      function concatArrayBuffers(bufs) {
+        let offset = 0, bytes = 0;
+        bufs.map(buf => {
+          bytes += buf.byteLength;
+          return buf;
+        });
+
+        var buffer = new ArrayBuffer(bytes);
+        var store = new Uint8Array(buffer);
+
+        bufs.forEach(buf => {
+          store.set(new Uint8Array(buf.buffer || buf, buf.byteOffset), offset);
+          offset += buf.byteLength;
+        });
+
+        return buffer;
+      }
+
       socket.on('newMessage', async newMessage => {
-        const decryptedContent = decrypt(newMessage.content, this.key);
-        if(decryptedContent && this.key) {
+        const decryptedContent = decrypt(newMessage.content, key);
+        if(decryptedContent && key) {
           this.error = null;
+          let { fileDescriptions, filesCount, files } = newMessage;
+          
+          fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
 
-          const importedKey = await crypto.subtle.importKey(
-            'jwk',
-            {
-              kty: 'oct',
-              k: key,
-              alg: 'A256GCM',
-              ext: true,
-            },
-            { name: 'AES-GCM' },
-            false,
-            ['encrypt', 'decrypt']
-          );
+          if(filesCount) {
+            await new Promise(async resolve => {
+              socket.on('chunk', async ({ uuid, iv, encrypted, fileName, fileType, finished }) => {
+                if(!finished) return chunks.push({ iv, encrypted });
+                const name = decrypt(fileName, key);
+                const type = decrypt(fileType, key);
+                if(chunks.length) {
+                  let decryptedChunks = [];
+                  for(const { iv, encrypted } of chunks) {
+                    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+                    decryptedChunks.push(decrypted);
+                  }
+                  chunks = [];
+                  const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
+                  const src = URL.createObjectURL(file);
+                  this.setTempDecryptedFiles([...this.tempDecryptedFiles, { uuid, src, name, type, notFetched: true }]);
+                  if(this.tempDecryptedFiles.length == filesCount) resolve();
+                } else {
+                  chunks = [];
+                  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+                  const file = new File([decrypted], name, { type });
+                  const src = URL.createObjectURL(file);
+                  this.setTempDecryptedFiles([...this.tempDecryptedFiles, { uuid, src, name, type, notFetched: true }]);
+                  if(this.tempDecryptedFiles.length == filesCount) resolve();
+                }
+              });
 
-          const files = [];
-
-          for(const { iv, encrypted_content, fileName, fileType } of newMessage.files) {
-            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted_content);
-            const name = decrypt(fileName, key);
-            const type = decrypt(fileType, key);
-
-            files.push({ src: URL.createObjectURL(new File([decrypted], name, { type })), name, type });
+              for(const { uuid } of files) {
+                await new Promise(secondResolve => {
+                  socket.emit('getChunks', uuid, error => {
+                    if(error == 404) files = files.filter(file => file.uuid != uuid);
+                    if(files.length) return secondResolve();
+                    resolve();
+                    secondResolve();
+                  });
+                });
+              }
+            });
+  
+            socket.off('chunk');
           }
 
           const message = {
             ...newMessage,
+            filesCount,
             content: decryptedContent,
-            files
+            files: this.tempDecryptedFiles,
+            fileDescriptions
           };
+
+          this.setTempDecryptedFiles([]);
+
           await new Promise(resolve => {
             this.messages.push(message);
             this.allMessages.push(newMessage);
@@ -253,7 +315,7 @@
             const sequenceNumber = offset / CHUNK_SIZE;
             const chunk = fileContents.slice(offset, i + 1 == chunksLength.toFixed(0) ? fileContents.length : offset + CHUNK_SIZE);
             const iv = crypto.getRandomValues(new Uint8Array(16));
-            const encryptedChunk = await crypto.subtle.encrypt(
+            let encryptedChunk = await crypto.subtle.encrypt(
               {
                 name: 'AES-GCM',
                 iv
@@ -266,10 +328,11 @@
               progress.push(percentage);
               this.progress = percentage;
             }
+            encryptedChunk = appendBuffer(iv, encryptedChunk);
             await new Promise(resolve => {
-              this.socket.emit('uploadChunk', { fileUUID, percentage, encryptedChunk: appendBuffer(iv, encryptedChunk) }, () => resolve());
+              this.socket.emit('uploadChunk', { fileUUID, percentage, encryptedChunk }, () => resolve());
             });
-            chunks.push(appendBuffer(iv, encryptedChunk));
+            chunks.push(encryptedChunk);
             offset += CHUNK_SIZE;
           }
 
@@ -296,14 +359,12 @@
           children = [];
         }
 
-        const fileDescriptions = treeItems.map(item => ({ name: encrypt(item.name, key), children: item.children.map(item => ({ ...item, type: encrypt(item.type, key), name: encrypt(item.name, key) })) }));
+        const fileDescriptions = treeItems.map(({ name, children }) => ({ name: encrypt(name, key), children: children.map(item => ({ ...item, type: encrypt(item.type, key), name: encrypt(item.name, key) })) }));
 
         const newMessage = await this.handleSendMessage({ message, files: encryptedFiles, fileDescriptions });
 
         this.message = null;
         this.sendingMessage = false;
-
-        console.log(encryptedFiles);
         
         files = files.map((file, i) => {
           const { name, type } = file;
@@ -313,7 +374,8 @@
 
         this.setFiles([]);
 
-        const msg = { ...newMessage, files, fileDescriptions: treeItems, content: decrypt(newMessage.content, key) };
+        const msg = { ...newMessage, files, fileDescriptions: treeItems.map((treeItem, id) => ({ id, ...treeItem })), content: decrypt(newMessage.content, key) };
+
         await new Promise(resolve => {
           this.messages.push(msg);
           this.allMessages.push(newMessage);
@@ -372,10 +434,10 @@
         await this.handleLogout();
       },
       ...mapActions(['handleGetMessages', 'handleSendMessage', 'handleLogout']),
-      ...mapMutations(['setFiles'])
+      ...mapMutations(['setFiles', 'setTempDecryptedFiles'])
     },
     computed: {
-      ...mapState(['user', 'socket', 'files']),
+      ...mapState(['user', 'socket', 'files', 'tempDecryptedFiles']),
       files: {
         get() {
           return this.$store.state.files;
