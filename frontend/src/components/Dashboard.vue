@@ -105,6 +105,24 @@
     }
   }
 
+  function concatArrayBuffers(bufs) {
+    let offset = 0, bytes = 0;
+    bufs.map(buf => {
+      bytes += buf.byteLength;
+      return buf;
+    });
+
+    var buffer = new ArrayBuffer(bytes);
+    var store = new Uint8Array(buffer);
+
+    bufs.forEach(buf => {
+      store.set(new Uint8Array(buf.buffer || buf, buf.byteOffset), offset);
+      offset += buf.byteLength;
+    });
+
+    return buffer;
+  }
+
   export default {
     name: 'Dashboard',
     components: { Messages, Files },
@@ -118,7 +136,6 @@
       sendingMessage: false,
       keyFieldDisabled: localStorage.getItem('keyFieldDisabled') == 'true',
       allMessages: [],
-      messages: [],
       progress: 0,
     }),
     async created() {
@@ -139,7 +156,7 @@
       this.loading = false;
       await new Promise(resolve => {
         this.allMessages = messages;
-        this.messages = messages.map(message => ({ ...message, content: decrypt(message.content, key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content);
+        this.setMessages(messages.map(message => ({ ...message, content: decrypt(message.content, key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content));
         resolve();
       });
       let messagesElement = document.querySelector('#messages');
@@ -160,25 +177,8 @@
 
       let chunks = [];
 
-      function concatArrayBuffers(bufs) {
-        let offset = 0, bytes = 0;
-        bufs.map(buf => {
-          bytes += buf.byteLength;
-          return buf;
-        });
-
-        var buffer = new ArrayBuffer(bytes);
-        var store = new Uint8Array(buffer);
-
-        bufs.forEach(buf => {
-          store.set(new Uint8Array(buf.buffer || buf, buf.byteOffset), offset);
-          offset += buf.byteLength;
-        });
-
-        return buffer;
-      }
-
       socket.on('newMessage', async newMessage => {
+        const { key } = this;
         const decryptedContent = decrypt(newMessage.content, key);
         if(decryptedContent && key) {
           this.error = null;
@@ -239,7 +239,7 @@
           this.setTempDecryptedFiles([]);
 
           await new Promise(resolve => {
-            this.messages.push(message);
+            this.setMessages([...this.messages, message]);
             this.allMessages.push(newMessage);
             resolve();
           });
@@ -377,7 +377,7 @@
         const msg = { ...newMessage, files, fileDescriptions: treeItems.map((treeItem, id) => ({ id, ...treeItem })), content: decrypt(newMessage.content, key) };
 
         await new Promise(resolve => {
-          this.messages.push(msg);
+          this.setMessages([...this.messages, msg]);
           this.allMessages.push(newMessage);
           resolve();
         });
@@ -397,10 +397,28 @@
         const { key } = this;
         if(!key) return this.error = 'Key cannot be empty!';
         if(key.length < 43) return this.error = 'Key must be 43 length or more!';
+
         this.error = null;
-        await new Promise(resolve => {
-          localStorage.setItem('key', key);
-          this.messages = this.allMessages.map(message => ({ ...message, content: decrypt(message.content, key) })).filter(({ content }) => content);
+
+        localStorage.setItem('key', key);
+
+        let tempMessages = [];
+
+        await new Promise(async resolve => {
+          for(const message of this.allMessages) {
+            let { content, fileDescriptions, files } = message;
+            content = decrypt(content, key);
+
+            if(content) {
+              fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
+
+              const obj = { ...message, content, files: [], fileDescriptions };
+              
+              tempMessages.push(obj);
+            }
+          }
+          this.setMessages(tempMessages.length ? [...this.messages, ...tempMessages] : []);
+          tempMessages = [];
           resolve();
         });
 
@@ -417,9 +435,9 @@
       },
       async generateNewKey() {
         const AES_KEY = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-        const exportedKey = await crypto.subtle.exportKey('jwk', AES_KEY);
-        this.key = exportedKey.k;
-        await this.setQR(this.key);
+        const { k } = await crypto.subtle.exportKey('jwk', AES_KEY);
+        this.key = k;
+        await this.setQR(k);
         this.keyChange();
         this.copyToClipboard();
       },
@@ -434,10 +452,10 @@
         await this.handleLogout();
       },
       ...mapActions(['handleGetMessages', 'handleSendMessage', 'handleLogout']),
-      ...mapMutations(['setFiles', 'setTempDecryptedFiles'])
+      ...mapMutations(['setFiles', 'setTempDecryptedFiles', 'setMessages'])
     },
     computed: {
-      ...mapState(['user', 'socket', 'files', 'tempDecryptedFiles']),
+      ...mapState(['user', 'socket', 'files', 'tempDecryptedFiles', 'messages']),
       files: {
         get() {
           return this.$store.state.files;

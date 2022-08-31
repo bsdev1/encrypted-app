@@ -1,5 +1,5 @@
 <template>
-  <form v-if="!user" class="mx-auto" @submit.prevent="register">
+  <form v-if="!user" class="mx-auto auth-form px-5" @submit.prevent="register">
     <h2 class="mb-5 mt-8">Register</h2>
     <transition-group name="register_errors_transition">
       <v-alert v-for="error of errors" :key="error" class="alert_error mb-5" type="error" color="red">{{ error }}</v-alert>

@@ -29,7 +29,7 @@
     margin: 0;
   }
 
-  form {
+  .auth-form {
     width: 500px;
   }
 
@@ -46,5 +46,9 @@
     &-enter, &-leave-to {
       opacity: 0;
     }
+  }
+
+  @media screen and (max-width: 520px) {
+    .auth-form { width: 100%; }
   }
 </style>

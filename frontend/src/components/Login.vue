@@ -1,5 +1,5 @@
 <template>
-  <form v-if="!user" class="mx-auto" @submit.prevent="login">
+  <form v-if="!user" class="mx-auto auth-form px-5" @submit.prevent="login">
     <h2 class="mb-5 mt-8">Log In</h2>
     <v-slide-y-transition>
       <v-alert class="alert_error mb-5" type="error" color="red" v-if="error">{{ error }}</v-alert>

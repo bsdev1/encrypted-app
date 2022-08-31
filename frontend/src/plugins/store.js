@@ -54,6 +54,7 @@ const store = new Vuex.Store({
     currentFetchedFile: null,
     files: [],
     tempDecryptedFiles: [],
+    messages: [],
     fetchingFiles: false,
   },
   mutations: {
@@ -83,17 +84,33 @@ const store = new Vuex.Store({
     },
     setCurrentFetchedFile(state, currentFetchedFile) {
       state.currentFetchedFile = currentFetchedFile;
+    },
+    setMessages(state, messages) {
+      state.messages = messages;
     }
   },
   actions: {
     async initSocket({ commit }, user) {
-      const socket = io(process.env.VUE_APP_BACKEND, { withCredentials: true });
+      const socket = io(process.env.VUE_APP_BACKEND, { withCredentials: true, autoConnect: false });
+
       commit('setUser', user);
       commit('setSocket', socket);
-      socket.emit('connectUser');
+      
+      socket.on('connect', () => {
+        console.log('connected');
+        socket.emit('connectUser');
+      });
+      
+      socket.on('disconnect', () => {
+        console.log('disconnected');
+        socket.connect();
+      });
+      
+      socket.connect();
+
       if('serviceWorker' in navigator) {
         try {
-          const registration = await navigator.serviceWorker.register('../sw.js', {
+          const registration = await navigator.serviceWorker.register('/sw.js', {
             scope: '/',
           });
           if (registration.installing) {

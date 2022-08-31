@@ -7,12 +7,15 @@
       <v-treeview :items="fileDescriptions" open-on-click rounded>
         <template v-slot:label="{ item: { size, name, type, uuid } }">
           <div v-if="name && uuid">
-            <div :class="showable(type) && fileSrc(uuid) ? 'pt-3' : ''">
+            <div :class="showable(type) && fileSrc(uuid) ? 'pt-3' : 'pa-3'">
               {{ name }} ({{ type ? type : 'No Type' }}, {{ filesize(size) }})
+              {{ tempDecryptedFiles.find(file => file.uuid == uuid) }}
               <span v-if="fileSrc(uuid)">
-                <a target="_blank" class="ml-2" :href="fileSrc(uuid).src" v-if="file(uuid) || isFetchedFiles">
-                  Download
-                </a>
+                <div>
+                  <a target="_blank" class="font-weight-bold" :href="fileSrc(uuid).src" v-if="file(uuid) || isFetchedFiles">
+                    Download
+                  </a>
+                </div>
                 <div v-if="showable(type)">
                   <img class="pa-4 ml-5" v-if="type.startsWith('image')" :src="fileSrc(uuid).src" style="max-width: 100%" height="150" />
                   <video class="pa-4 ml-5" v-if="type.startsWith('video')" style="max-width: 100%" height="300" controls>
@@ -23,7 +26,7 @@
                   </audio>
                 </div>
               </span>
-              <b class="ml-2" @click="fetchFile(uuid, id)" v-else>Fetch File</b>
+              <div class="font-weight-bold" @click="fetchFile(uuid, id)" v-else>Fetch File</div>
             </div>
           </div>
           <div v-else>
@@ -116,11 +119,11 @@
       file(uuid) {
         return (this.files.length ? this.files : this.tempDecryptedFiles).find(file => file.uuid == uuid);
       },
-      ...mapMutations(['setTempDecryptedFiles', 'setFetchingFiles']),
+      ...mapMutations(['setTempDecryptedFiles', 'setFetchingFiles', 'setMessages']),
       ...mapActions(['handleFetchFiles', 'handleFetchFile'])
     },
     computed: {
-      ...mapState(['tempDecryptedFiles', 'currentMessage', 'fetchingFiles', 'currentFetchedFile']),
+      ...mapState(['tempDecryptedFiles', 'currentMessage', 'fetchingFiles', 'currentFetchedFile', 'messages']),
       totalSize() {
         let size = 0;
         this.fileDescriptions.forEach(({ children }) => children.forEach(child => size += child.size));
