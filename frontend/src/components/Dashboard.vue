@@ -39,6 +39,7 @@
         <div class="d-flex mt-2">
           <v-text-field required @input="keyChange" :disabled="sendingMessage || keyFieldDisabled" v-model="key" label="Your Key" solo placeholder="Type In Your Key" hide-details></v-text-field>
           <v-btn class="ml-5" height="48" width="100" @click="copyToClipboard">Copy</v-btn>
+          <v-btn class="ml-5" height="48" width="250" @click="insertFromClipboard">Insert From Clipboard</v-btn>
         </div>
         <v-checkbox
           hide-details
@@ -121,6 +122,13 @@
     });
 
     return buffer;
+  }
+
+  function appendBuffer(appendBuffer, buffer) {
+    const array = new Uint8Array(appendBuffer.byteLength + buffer.byteLength);
+    array.set(new Uint8Array(appendBuffer), 0);
+    array.set(new Uint8Array(buffer), appendBuffer.byteLength);
+    return array;
   }
 
   export default {
@@ -277,13 +285,6 @@
           ['encrypt', 'decrypt']
         );
 
-        const appendBuffer = function(appendBuffer, buffer) {
-          const array = new Uint8Array(appendBuffer.byteLength + buffer.byteLength);
-          array.set(new Uint8Array(appendBuffer), 0);
-          array.set(new Uint8Array(buffer), appendBuffer.byteLength);
-          return array;
-        };
-
         const CHUNK_SIZE = 1024 * 512, encryptedFiles = [];
         let chunks = [], children = [], treeItems = [];
 
@@ -384,6 +385,47 @@
 
         const messages = document.querySelector('#messages');
         if(messages) messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
+      },
+      async insertFromClipboard() {
+        const clipboard = await navigator.clipboard.readText();
+        if(!clipboard?.trim()) return this.$notify({
+          text: 'Your clipboard is empty.',
+          type: 'error'
+        });
+        if(clipboard.length < 43) return this.$notify({
+          text: 'Key must be 43 characters long!',
+          type: 'error'
+        });
+        if(clipboard == this.key) return this.$notify({
+          text: 'Key inserted from clipboard.',
+          type: 'success'
+        });
+        try {
+          await crypto.subtle.importKey(
+            'jwk',
+            {
+              kty: 'oct',
+              k: clipboard,
+              alg: 'A256GCM',
+              ext: true,
+            },
+            { name: 'AES-GCM' },
+            false,
+            ['encrypt', 'decrypt']
+          );
+        } catch {
+          return this.$notify({
+            text: 'Invalid AES key!',
+            type: 'error'
+          });
+        }
+        this.key = clipboard;
+        await this.setQR(clipboard);
+        this.keyChange();
+        return this.$notify({
+          text: 'Key inserted from clipboard.',
+          type: 'success'
+        });
       },
       fileDrop({ items, files }) {
         if(!items) files = [...files];
