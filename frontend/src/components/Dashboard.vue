@@ -153,8 +153,8 @@
       progress: 0,
     }),
     async created() {
-      let { user, socket, key } = this;
-      if(!user && (path == 'Login' || path == 'Register')) return router.push('/login');
+      let { user, socket, pathFrom, key } = this;
+      if(!user && (pathFrom == 'Login' || pathFrom == 'Register')) return router.push('/login');
       if(!key || key.length < 43) {
         const AES_KEY = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
         const newKey = await crypto.subtle.exportKey('jwk', AES_KEY);
@@ -504,7 +504,7 @@
       ...mapMutations(['setFiles', 'setTempDecryptedFiles', 'setMessages'])
     },
     computed: {
-      ...mapState(['user', 'socket', 'files', 'tempDecryptedFiles', 'messages', 'path', 'loading']),
+      ...mapState(['user', 'socket', 'files', 'tempDecryptedFiles', 'messages', 'pathFrom', 'loading']),
       files: {
         get() {
           return this.$store.state.files;

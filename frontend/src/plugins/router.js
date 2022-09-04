@@ -24,6 +24,7 @@ const router = new Router({
 router.beforeEach((to, from, next) => {
   store.commit('setLoading', true);
   store.commit('setPath', to.name);
+  store.commit('setPathFrom', from.name);
   next();
 });
 

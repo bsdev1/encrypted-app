@@ -50,6 +50,7 @@ const store = new Vuex.Store({
     newUser: null,
     socket: null,
     path: null,
+    pathFrom: null,
     currentMessage: null,
     currentFetchedFile: null,
     currentMultiple: null,
@@ -108,6 +109,9 @@ const store = new Vuex.Store({
     },
     setLoading(state, loading) {
       state.loading = loading;
+    },
+    setPathFrom(state, pathFrom) {
+      state.pathFrom = pathFrom;
     }
   },
   actions: {
@@ -173,6 +177,7 @@ const store = new Vuex.Store({
       dispatch('logout');
     },
     logout({ state, commit }) {
+      if(!state.user) return router.push('/login');
       commit('setUser', null);
       state.socket.disconnect();
       commit('setSocket', null);
@@ -185,7 +190,7 @@ const store = new Vuex.Store({
       router.push('/login');
       return {};
     },
-    async handleGetMessages() {
+    async handleGetMessages({ dispatch }) {
       const { data: { messages, success } } = await request.get('/messages');
       if(success == false) return dispatch('logout');
       return messages.map(message => ({ ...message, files: [] }));
