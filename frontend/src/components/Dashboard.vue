@@ -166,7 +166,6 @@
       setInterval(() => this.date = moment().format('dddd, MMMM Do YYYY, h:mm:ss A'), 1000);
       this.loadingMessages = true;
       await this.setQR(key);
-      this.setLoading(false);
       const messages = await this.handleGetMessages();
       this.loadingMessages = false;
       await new Promise(resolve => {
@@ -502,7 +501,7 @@
         await this.handleLogout();
       },
       ...mapActions(['handleGetMessages', 'handleSendMessage', 'handleLogout']),
-      ...mapMutations(['setFiles', 'setTempDecryptedFiles', 'setMessages', 'setLoading'])
+      ...mapMutations(['setFiles', 'setTempDecryptedFiles', 'setMessages'])
     },
     computed: {
       ...mapState(['user', 'socket', 'files', 'tempDecryptedFiles', 'messages', 'path', 'loading']),
