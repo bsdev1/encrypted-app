@@ -52,10 +52,18 @@ const store = new Vuex.Store({
     path: null,
     currentMessage: null,
     currentFetchedFile: null,
+    currentMultiple: null,
     files: [],
     tempDecryptedFiles: [],
     messages: [],
-    fetchingFiles: false,
+    fetchingFiles: {
+      type: null,
+      running: false
+    },
+    currentDownload: {
+      messageId: null,
+      percentage: 0
+    },
   },
   mutations: {
     setNewUser(state, newUser) {
@@ -79,14 +87,23 @@ const store = new Vuex.Store({
     setCurrentMessage(state, currentMessage) {
       state.currentMessage = currentMessage;
     },
-    setFetchingFiles(state, fetchingFiles) {
-      state.fetchingFiles = fetchingFiles;
+    setFetchingFiles(state, obj) {
+      state.fetchingFiles = obj;
     },
     setCurrentFetchedFile(state, currentFetchedFile) {
       state.currentFetchedFile = currentFetchedFile;
     },
     setMessages(state, messages) {
       state.messages = messages;
+    },
+    setCurrentDownloadMessage(state, messageId) {
+      state.currentDownload.messageId = messageId;
+    },
+    setCurrentDownloadPercentage(state, percentage) {
+      state.currentDownload.percentage = percentage;
+    },
+    setCurrentMultiple(state, currentMultiple) {
+      state.currentMultiple = currentMultiple;
     }
   },
   actions: {
@@ -170,11 +187,19 @@ const store = new Vuex.Store({
 
       commit('setCurrentMessage', messageId);
 
-      let chunks = [];
+      let chunks = [], percentages = [];
 
       await new Promise(async resolve => {
-        state.socket.on('chunk', async ({ iv, encrypted, finished, fileName, fileType, uuid }) => {
-          if(!finished) return chunks.push({ iv, encrypted });
+        state.socket.on('chunk', async ({ iv, encrypted, percentage, messageId, finished, fileName, fileType, uuid }) => {
+          if(!finished) {
+            if(!percentages.includes(percentage)) {
+              percentages.push(percentage);
+              if(state.currentDownload.messageId != messageId) commit('setCurrentDownloadMessage', messageId);
+              commit('setCurrentDownloadPercentage', percentage);
+            }
+            if(state.setCurrentMultiple != uuid) commit('setCurrentMultiple', uuid);
+            return chunks.push({ iv, encrypted });
+          }
           const name = decrypt(fileName, key);
           const type = decrypt(fileType, key);
           if(chunks.length) {
@@ -184,17 +209,25 @@ const store = new Vuex.Store({
               decryptedChunks.push(decrypted);
             }
             chunks = [];
+            percentages = [];
             const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
             const src = URL.createObjectURL(file);
             commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
-            if(state.tempDecryptedFiles.length == files.length) resolve();
+            if(state.tempDecryptedFiles.length == files.length) {
+              commit('setCurrentDownloadPercentage', 0);
+              resolve();
+            }
           } else {
             chunks = [];
+            percentages = [];
             const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
             const file = new File([decrypted], name, { type });
             const src = URL.createObjectURL(file);
             commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
-            if(state.tempDecryptedFiles.length == files.length) resolve();
+            if(state.tempDecryptedFiles.length == files.length) {
+              commit('setCurrentDownloadPercentage', 0);
+              resolve();
+            }
           }
         });
   
@@ -217,11 +250,18 @@ const store = new Vuex.Store({
       commit('setCurrentMessage', messageId);
       commit('setCurrentFetchedFile', uuid);
 
-      let chunks = [];
+      let chunks = [], percentages = [];
 
       await new Promise(resolve => {
-        state.socket.on('chunk', async ({ iv, encrypted, finished, fileName, fileType, uuid }) => {
-          if(!finished) return chunks.push({ iv, encrypted });
+        state.socket.on('chunk', async ({ iv, encrypted, percentage, messageId, finished, fileName, fileType, uuid }) => {
+          if(!finished) {
+            if(!percentages.includes(percentage)) {
+              percentages.push(percentage);
+              if(state.currentDownload.messageId != messageId) commit('setCurrentDownloadMessage', messageId);
+              commit('setCurrentDownloadPercentage', percentage);
+            }
+            return chunks.push({ iv, encrypted, percentage });
+          }
           const name = decrypt(fileName, key);
           const type = decrypt(fileType, key);
           if(chunks.length) {
@@ -230,17 +270,21 @@ const store = new Vuex.Store({
               const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
               decryptedChunks.push(decrypted);
             }
-            chunks = [];
             const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
             const src = URL.createObjectURL(file);
             commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+            commit('setCurrentDownloadPercentage', 0);
+            chunks = [];
+            percentages = [];
             resolve();
           } else {
-            chunks = [];
             const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
             const file = new File([decrypted], name, { type });
             const src = URL.createObjectURL(file);
             commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+            commit('setCurrentDownloadPercentage', 0);
+            chunks = [];
+            percentages = [];
             resolve();
           }
         });

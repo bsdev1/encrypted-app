@@ -111,41 +111,46 @@ io.on('connection', socket => {
       await File.deleteOne({ uuid });
       return cb(404);
     }
-    const CHUNK_SIZE = (1024 * 512) + 32;
-    const encryptedFile = new Uint8Array(await fs.readFile(`./public/usersFiles/${uuid}.encrypted`));
-    let { chunks, fileName, fileType } = await File.findOne({ uuid });
+    const CHUNK_SIZE = (1024 * 512) + 28;
+    let encryptedFile = new Uint8Array(await fs.readFile(`./public/usersFiles/${uuid}.encrypted`));
+    let { chunks, fileName, fileType, message: messageId } = await File.findOne({ uuid });
     const [doubledChunks] = chunks;
-
+    
     const [chunkSize, doubledChunksLength] = doubledChunks.split('-');
     
     chunks = Array.from({ length: doubledChunksLength }, () => parseInt(chunkSize)).concat(chunks.slice(1, chunks.length));
     
     let offset = 0;
+    const chunksLength = encryptedFile.length / CHUNK_SIZE;
     
     for(let i = 0; i < chunks.length; i++) {
-      const chunk = encryptedFile.slice(offset, offset + chunks[i]);
-      const iv = chunk.slice(0, 16);
-      const encrypted = chunk.slice(16, chunk.length);
+      let chunk = encryptedFile.slice(offset, offset + chunks[i]);
+      let iv = chunk.slice(0, 12);
+      let encrypted = chunk.slice(12, chunk.length);
+      const sequenceNumber = offset / CHUNK_SIZE;
+      const percentage = encryptedFile.length < CHUNK_SIZE ? 100 : ((sequenceNumber / chunksLength.toFixed(0)) * 100).toFixed(0);
       const finished = encryptedFile.length < CHUNK_SIZE ? true : i + 1 == chunks.length;
-      const obj = { iv, encrypted, finished, uuid };
+      const obj = { iv, encrypted, finished, uuid, percentage, messageId: messageId.toString() };
       if(finished) {
         obj.fileName = fileName;
         obj.fileType = fileType;
+        socket.emit('chunk', obj);
+        cb();
+      } else {
+        socket.emit('chunk', obj);
+        offset += chunks[i];
       }
-      socket.emit('chunk', obj);
-      offset += chunks[i];
-      if(obj.fileName) cb();
     }
   });
 
   socket.on('uploadChunk', async ({ fileUUID, percentage, encryptedChunk }, cb) => {
     if(percentage == 100) {
-      await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk);
+      await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk, { encoding: 'utf-8' });
       const author = socket.request.user.id;
       await FileUpload.deleteOne({ fileUUID, author });
       return cb();
     }
-    await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk);
+    await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk, { encoding: 'utf-8' });
     cb();
   });
 

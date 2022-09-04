@@ -30,7 +30,7 @@
           <v-text-field :disabled="sendingMessage" v-model="message" label="Message" solo ref="message" placeholder="Type In Your Message" hide-details></v-text-field>
           <v-btn type="submit" height="48" width="100" class="ml-5 my-auto" :loading="sendingMessage">Send</v-btn>
         </form>
-        <div class="drop__files mt-5 pa-3" @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)" @dragover="fileDragOver">Drop Files In Here</div>
+        <div class="drop__files mt-5 pa-3 py-6" @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)" @dragover="fileDragOver">Drag & Drop Files In Here</div>
         <div class="mt-4" style="width: 300px; border-radius: 100px; background: #202020">
           <div :class="progress ? 'pa-2 px-4 progress' : 'progress'" :style="`width: ${progress}%; transition: 0.3s ease; border-radius: 100px; background: #303030;`"><b v-if="progress">{{ progress }}%</b></div>
         </div>
@@ -39,8 +39,8 @@
         <div class="d-flex mt-2">
           <v-text-field required @input="keyChange" :disabled="sendingMessage || keyFieldDisabled" v-model="key" label="Your Key" solo placeholder="Type In Your Key" hide-details></v-text-field>
           <v-btn class="ml-5" height="48" width="100" @click="copyToClipboard">Copy</v-btn>
-          <v-btn class="ml-5" height="48" width="250" @click="insertFromClipboard">Insert From Clipboard</v-btn>
         </div>
+        <v-btn style="max-width: 100%;" class="my-5" height="48" width="200" @click="pasteFromClipboard">Paste Clipboard</v-btn>
         <v-checkbox
           hide-details
           class="mb-6 mt-3"
@@ -315,7 +315,7 @@
           for(let i = 0; i < chunksLength; i++) {
             const sequenceNumber = offset / CHUNK_SIZE;
             const chunk = fileContents.slice(offset, i + 1 == chunksLength.toFixed(0) ? fileContents.length : offset + CHUNK_SIZE);
-            const iv = crypto.getRandomValues(new Uint8Array(16));
+            const iv = crypto.getRandomValues(new Uint8Array(12));
             let encryptedChunk = await crypto.subtle.encrypt(
               {
                 name: 'AES-GCM',
@@ -386,7 +386,7 @@
         const messages = document.querySelector('#messages');
         if(messages) messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
       },
-      async insertFromClipboard() {
+      async pasteFromClipboard() {
         const clipboard = await navigator.clipboard.readText();
         if(!clipboard?.trim()) return this.$notify({
           text: 'Your clipboard is empty.',
@@ -525,9 +525,9 @@
 
   .drop__files {
     background-image: linear-gradient(to left, #303030, #202020);
-    border-radius: 5px;
+    border-radius: 10px;
     font-weight: bold;
-    width: 200px;
+    width: 250px;
     text-align: center;
   }
 

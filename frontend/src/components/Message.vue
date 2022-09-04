@@ -3,30 +3,49 @@
     <div>by <b>{{ author.username }}</b> - {{ ago(createdAt) }}</div>
     {{ content }}<br>
     <div class="mt-2">
-      <div v-if="tempDecryptedFiles.length && currentMessage == id && percentage < 100">{{ percentage }}%</div>
+      <div v-if="fetchingFiles.running && fetchingFiles.type == 'multiple' && currentMessage == id">{{ percentage < 100 ? percentage : 100 }}%</div>
       <v-treeview :items="fileDescriptions" open-on-click rounded>
-        <template v-slot:label="{ item: { size, name, type, uuid } }">
+        <template class="file__label" v-slot:label="{ item: { size, name, type, uuid } }">
           <div v-if="name && uuid">
-            <div :class="showable(type) && fileSrc(uuid) ? 'pt-3' : 'pa-3'">
-              {{ name }} ({{ type ? type : 'No Type' }}, {{ filesize(size) }})
-              {{ tempDecryptedFiles.find(file => file.uuid == uuid) }}
-              <span v-if="fileSrc(uuid)">
+            <div :class="showable(type) && fileSrc(uuid) ? 'pa-4' : 'pa-4'" style="cursor: default; user-select: text;">
+              <div class="text-caption d-flex flex-column">
                 <div>
-                  <a target="_blank" class="font-weight-bold" :href="fileSrc(uuid).src" v-if="file(uuid) || isFetchedFiles">
-                    Download
-                  </a>
+                  <span class="file__info">
+                    Type: {{ type ? type : 'No Type' }}
+                    <div class="file__tooltip">{{ type ? type : 'No Type' }}</div>
+                  </span>
                 </div>
+                <div>
+                  <span class="file__info">
+                    Name: {{ name }}
+                    <div class="file__tooltip">{{ name }}</div>
+                  </span>
+                </div>
+                <div>
+                  <span class="file__info">
+                    File Size: {{ filesize(size) }}
+                    <div class="file__tooltip">{{ filesize(size) }}</div>
+                  </span>
+                </div>
+              </div>
+              <span v-if="fileSrc(uuid)">
+                <a target="_blank" :download="file(uuid).name" class="font-weight-bold text-decoration-none d-block mt-2" :href="fileSrc(uuid).src" v-if="file(uuid) || isFetchedFiles">
+                  <v-btn small>Download File</v-btn>
+                </a>
                 <div v-if="showable(type)">
-                  <img class="pa-4 ml-5" v-if="type.startsWith('image')" :src="fileSrc(uuid).src" style="max-width: 100%" height="150" />
-                  <video class="pa-4 ml-5" v-if="type.startsWith('video')" style="max-width: 100%" height="300" controls>
+                  <img class="mt-5" v-if="type.startsWith('image')" :src="fileSrc(uuid).src" style="max-width: 100%" height="150" />
+                  <video class="mt-5" v-if="type.startsWith('video')" style="max-width: 100%" height="300" controls>
                     <source :src="fileSrc(uuid).src" />
                   </video>
-                  <audio class="ma-4 ml-5" v-if="type.startsWith('audio')" controls style="max-width: 100%">
+                  <audio class="mt-5" v-if="type.startsWith('audio')" controls style="max-width: 100%">
                     <source :src="fileSrc(uuid).src" :type="type" />
                   </audio>
                 </div>
               </span>
-              <div class="font-weight-bold" @click="fetchFile(uuid, id)" v-else>Fetch File</div>
+              <div v-else>
+                <div class="text-caption mt-1" v-if="currentFetchedFile == uuid">{{ currentDownload.percentage < 100 ? currentDownload.percentage : 100 }}%</div>
+                <v-btn small class="d-block mt-2" @click="fetchFile(uuid, id)" :disabled="fetchingFiles.running">{{ currentFetchedFile == uuid ? 'Fetching File...' : currentMultiple == uuid ? '' : 'Fetch File' }}<span v-if="currentMultiple == uuid">Fetching File...</span></v-btn>
+              </div>
             </div>
           </div>
           <div v-else>
@@ -34,11 +53,13 @@
           </div>
         </template>
         <template v-slot:prepend="{ item: { type, uuid }, open }">
-          <mdicon v-if="!type && !uuid" :name="open ? 'folder-open' : 'folder'" />
-          <mdicon :name="type.startsWith('image') ? 'file-image' : type.startsWith('audio') ? 'file-music' : type.startsWith('video') ? 'file-video' : type ? filesTypes[type] : 'file-question'" v-else />
+          <div :class="type && type != 'folder-open' ? 'ml-5' : ''">
+            <mdicon v-if="!type && !uuid" :name="open ? 'folder-open' : 'folder'" />
+            <mdicon :name="type.startsWith('image') ? 'file-image' : type.startsWith('audio') ? 'file-music' : type.startsWith('video') ? 'file-video' : type ? filesTypes[type] : 'file-question'" v-else />
+          </div>
         </template>
       </v-treeview>
-      <v-btn class="my-2" v-if="currentMessageFiles(id) < filesCount && filesCount && !isFetchedFiles" :disabled="fetchingFiles" @click="fetchFiles(id)">Fetch&nbsp;File(s), {{ filesize(totalSize) }}</v-btn>
+      <v-btn class="my-2" v-if="currentMessageFiles(id) < filesCount && filesCount && !isFetchedFiles" :disabled="fetchingFiles.running" @click="fetchFiles(id)">{{ fetchingFiles.running && fetchingFiles.type == 'multiple' ? 'Fetching Files' : 'Fetch' }} File(s), {{ filesize(totalSize) }}</v-btn>
     </div>
   </div>
 </template>
@@ -71,7 +92,7 @@
       filesize,
       ago: date => format(date),
       async fetchFiles(messageId) {
-        this.setFetchingFiles(true);
+        this.setFetchingFiles({ type: 'multiple', running: true });
         const key = localStorage.getItem('key');
         const importedKey = await crypto.subtle.importKey(
           'jwk',
@@ -86,12 +107,13 @@
           ['encrypt', 'decrypt']
         );
         let files = await this.handleFetchFiles({ messageId, importedKey, key });
-        this.setFetchingFiles(false);
+        this.setFetchingFiles({ type: 'multiple', running: false });
         files = files.map(file => ({ ...file, messageId }));
         this.files = [...this.files, ...files];
         this.setTempDecryptedFiles([]);
       },
       async fetchFile(uuid, messageId) {
+        this.setFetchingFiles({ type: 'single', running: true });
         const key = localStorage.getItem('key');
         const importedKey = await crypto.subtle.importKey(
           'jwk',
@@ -107,6 +129,7 @@
         );
         const [file] = await this.handleFetchFile({ messageId, uuid, importedKey, key });
         if(file) this.files.push({ ...file, messageId });
+        this.setFetchingFiles({ type: 'single', running: false });
         this.setTempDecryptedFiles([]);
       },
       isAllowedType(type) {
@@ -123,7 +146,7 @@
       ...mapActions(['handleFetchFiles', 'handleFetchFile'])
     },
     computed: {
-      ...mapState(['tempDecryptedFiles', 'currentMessage', 'fetchingFiles', 'currentFetchedFile', 'messages']),
+      ...mapState(['tempDecryptedFiles', 'currentMessage', 'fetchingFiles', 'currentFetchedFile', 'messages', 'currentDownload', 'currentMultiple']),
       totalSize() {
         let size = 0;
         this.fileDescriptions.forEach(({ children }) => children.forEach(child => size += child.size));
@@ -148,3 +171,45 @@
     }
   }
 </script>
+
+<style scoped>
+  .v-treeview >>> .v-treeview-node__root, .v-treeview >>> .v-treeview-node__prepend {
+    cursor: default;
+  }
+
+  .mdi.mdi-folder, .mdi.mdi-folder-open {
+    cursor: pointer;
+    margin: 0 5px;
+  }
+
+  .mdi.mdi-file-question {
+    margin-left: 20px;
+  }
+
+  .v-treeview >>> .v-treeview-node__level {
+    display: none;
+  }
+
+  .v-treeview >>> .v-treeview-node__children {
+    margin-left: 50px;
+    position: relative;
+  }
+
+  .file__info:hover .file__tooltip {
+    translate: 0 0;
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .file__tooltip {
+    position: absolute;
+    translate: 0 -25px;
+    visibility: hidden;
+    opacity: 0;
+    padding: 3px 10px;
+    transition: 0.4s ease;
+    background: #404040;
+    border-radius: 5px;
+    z-index: 99999;
+  }
+</style>
