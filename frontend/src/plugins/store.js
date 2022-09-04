@@ -144,12 +144,15 @@ const store = new Vuex.Store({
     },
     async getDashboard({ state, commit, dispatch }) {
       const { data: { user, success } } = await request.get('/');
-      if(success == false && state.path != 'Register' && state.path != 'Login') {
+      if(success == false && state.path != 'Login' && state.path != 'Register') {
         router.push('/login');
         commit('setSocket', null);
         return commit('setUser', null);
       }
-      if(user && !state.user) dispatch('initSocket', user);
+      if(user && !state.user) {
+        dispatch('initSocket', user);
+        if(state.path == 'Login' || state.path == 'Register') return router.push('/');
+      }
     },
     async handleLogin({ state, dispatch }, { username, password }) {
       const { data: { errorMessage, user } } = await request.post('/login', { username, password });
@@ -160,11 +163,11 @@ const store = new Vuex.Store({
       }
       return {};
     },
-    async handleLogout({ state, commit, dispatch }) {
+    async handleLogout({ dispatch }) {
       await request.delete('/logout');
       dispatch('logout');
     },
-    logout({ commit }) {
+    logout({ state, commit }) {
       commit('setUser', null);
       state.socket.disconnect();
       commit('setSocket', null);
@@ -297,7 +300,11 @@ const store = new Vuex.Store({
         });
         
         state.socket.emit('getChunks', uuid, error => {
-          if(error == 404) return resolve();
+          if(error == 404) {
+            commit('setCurrentMessage', null);
+            commit('setCurrentFetchedFile', null);
+            return resolve();
+          }
         });
       });
 
