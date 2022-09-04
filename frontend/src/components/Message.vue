@@ -173,7 +173,7 @@
 </script>
 
 <style scoped>
-  .v-treeview >>> .v-treeview-node__root, .v-treeview >>> .v-treeview-node__prepend {
+  .v-treeview ::v-deep(.v-treeview-node__root), .v-treeview ::v-deep(.v-treeview-node__prepend) {
     cursor: default;
   }
 
@@ -186,11 +186,11 @@
     margin-left: 20px;
   }
 
-  .v-treeview >>> .v-treeview-node__level {
+  .v-treeview ::v-deep(.v-treeview-node__level) {
     display: none;
   }
 
-  .v-treeview >>> .v-treeview-node__children {
+  .v-treeview ::v-deep(.v-treeview-node__children) {
     margin-left: 50px;
     position: relative;
   }
