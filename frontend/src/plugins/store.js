@@ -160,8 +160,11 @@ const store = new Vuex.Store({
       }
       return {};
     },
-    async handleLogout({ state, commit }) {
+    async handleLogout({ state, commit, dispatch }) {
       await request.delete('/logout');
+      dispatch('logout');
+    },
+    logout({ commit }) {
       commit('setUser', null);
       state.socket.disconnect();
       commit('setSocket', null);
@@ -175,11 +178,13 @@ const store = new Vuex.Store({
       return {};
     },
     async handleGetMessages() {
-      const { data: { messages } } = await request.get('/messages');
+      const { data: { messages, success } } = await request.get('/messages');
+      if(success == false) return dispatch('logout');
       return messages.map(message => ({ ...message, files: [] }));
     },
-    async handleFetchFiles({ state, commit }, { messageId, importedKey, key }) {
-      let { data: files } = await request.get(`/getFiles/${messageId}`);
+    async handleFetchFiles({ state, commit, dispatch }, { messageId, importedKey, key }) {
+      let { data: { files, success } } = await request.get(`/getFiles/${messageId}`);
+      if(success == false) return dispatch('logout');
 
       if(!files.length) return [];
 
@@ -247,6 +252,8 @@ const store = new Vuex.Store({
       return state.tempDecryptedFiles;
     },
     async handleFetchFile({ state, commit }, { messageId, uuid, importedKey, key }) {
+      const { data: { success } } = await request.get('/');
+      if(success == false) return dispatch('logout');
       commit('setCurrentMessage', messageId);
       commit('setCurrentFetchedFile', uuid);
 
@@ -298,6 +305,8 @@ const store = new Vuex.Store({
       return state.tempDecryptedFiles;
     },
     async handleSendMessage({ state }, { message, files, fileDescriptions }) {
+      const { data: { success } } = await request.get('/');
+      if(success == false) return dispatch('logout');
       const newMessage = await new Promise(async resolve => {
         state.socket.emit('newMessage', { message, files, fileDescriptions }, newMessage => resolve(newMessage));
       });

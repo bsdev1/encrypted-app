@@ -47,7 +47,7 @@ router.get('/messages', ensureAuthenticated, async (req, res) => {
 
 router.get('/getFiles/:message', ensureAuthenticated, async (req, res) => {
   const files = await File.find({ message: req.params.message, author: req.user.id }).select('uuid fileType fileName -_id');
-  res.json(files);
+  res.json({ files });
 });
 
 // router.get('/getFiles/:message', ensureAuthenticated, async (req, res) => {

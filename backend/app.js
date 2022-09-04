@@ -38,7 +38,7 @@ const sessionMiddleware = session({
   rolling: true,
   store: new Store({ mongoUrl }),
   cookie: {
-    maxAge: 60 * 60 * 1000
+    maxAge: 24 * 60 * 60 * 1000
   }
 });
 
