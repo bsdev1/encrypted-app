@@ -118,8 +118,8 @@ const store = new Vuex.Store({
     async initSocket({ commit }, user) {
       const socket = io(process.env.VUE_APP_BACKEND, { withCredentials: true, autoConnect: false });
 
-      commit('setUser', user);
       commit('setSocket', socket);
+      commit('setUser', user);
       
       socket.on('connect', () => {
         console.log('connected');

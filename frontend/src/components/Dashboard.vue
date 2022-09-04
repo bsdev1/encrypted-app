@@ -153,7 +153,7 @@
       progress: 0,
     }),
     async created() {
-      let { user, socket, pathFrom, key } = this;
+      let { user, pathFrom, key } = this;
       if(!user && (pathFrom == 'Login' || pathFrom == 'Register')) return router.push('/login');
       if(!key || key.length < 43) {
         const AES_KEY = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
@@ -191,6 +191,8 @@
 
 
       let chunks = [];
+
+      const { socket } = this;
 
       socket.on('newMessage', async newMessage => {
         const { key } = this;
