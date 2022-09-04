@@ -64,6 +64,7 @@ const store = new Vuex.Store({
       messageId: null,
       percentage: 0
     },
+    loading: false,
   },
   mutations: {
     setNewUser(state, newUser) {
@@ -104,6 +105,9 @@ const store = new Vuex.Store({
     },
     setCurrentMultiple(state, currentMultiple) {
       state.currentMultiple = currentMultiple;
+    },
+    setLoading(state, loading) {
+      state.loading = loading;
     }
   },
   actions: {

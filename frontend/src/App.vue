@@ -8,18 +8,22 @@
 </template>
 
 <script>
-  import { mapActions, mapState } from 'vuex';
+  import { mapActions, mapMutations, mapState } from 'vuex';
 
   export default {
     name: 'App',
+    data: () => ({
+      fetching: false,
+    }),
     async created() {
       await this.getDashboard();
     },
     methods: {
-      ...mapActions(['getDashboard'])
+      ...mapActions(['getDashboard']),
+      ...mapMutations(['setLoading'])
     },
     computed: {
-      ...mapState(['path'])
+      ...mapState(['path', 'loading'])
     }
   }
 </script>
@@ -31,6 +35,14 @@
 
   .auth-form {
     width: 500px;
+  }
+
+  .loader {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
   }
 
   .fade-transition {
