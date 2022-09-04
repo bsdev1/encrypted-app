@@ -340,7 +340,7 @@
           progress = [];
           this.progress = 0;
 
-          const FIXED_CHUNK_SIZE = CHUNK_SIZE + 32;
+          const FIXED_CHUNK_SIZE = CHUNK_SIZE + 28;
 
           const duplicatedChunkLengths = chunks.map(chunk => chunk.length).filter(chunk => chunk == FIXED_CHUNK_SIZE).length;
           let chunkLengths = chunks.map(chunk => chunk.length).filter(chunk => chunk != FIXED_CHUNK_SIZE);
