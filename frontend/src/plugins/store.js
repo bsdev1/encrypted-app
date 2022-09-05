@@ -123,7 +123,6 @@ const store = new Vuex.Store({
       
       socket.on('connect', () => {
         console.log('connected');
-        commit('setLoading', false);
         socket.emit('connectUser');
       });
       
