@@ -68,6 +68,12 @@
   import { format } from 'timeago.js';
   import { mapActions, mapMutations, mapState } from 'vuex';
   import filesize from 'filesize';
+  import axios from 'axios';
+
+  const request = axios.create({
+    baseURL: `${process.env.VUE_APP_BACKEND}/api`,
+    withCredentials: true
+  });
 
   export default {
     name: 'Message',
@@ -113,6 +119,8 @@
         this.setTempDecryptedFiles([]);
       },
       async fetchFile(uuid, messageId) {
+        const { data: { success } } = await request.get('/');
+        if(success == false) return this.logOut();
         this.setFetchingFiles({ type: 'single', running: true });
         const key = localStorage.getItem('key');
         const importedKey = await crypto.subtle.importKey(
@@ -143,7 +151,7 @@
         return (this.files.length ? this.files : this.tempDecryptedFiles).find(file => file.uuid == uuid);
       },
       ...mapMutations(['setTempDecryptedFiles', 'setFetchingFiles', 'setMessages']),
-      ...mapActions(['handleFetchFiles', 'handleFetchFile'])
+      ...mapActions(['handleFetchFiles', 'handleFetchFile', 'logOut'])
     },
     computed: {
       ...mapState(['tempDecryptedFiles', 'currentMessage', 'fetchingFiles', 'currentFetchedFile', 'messages', 'currentDownload', 'currentMultiple']),

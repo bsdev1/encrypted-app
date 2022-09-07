@@ -45,7 +45,7 @@
             <v-text-field required @input="keyChange" :disabled="sendingMessage || keyFieldDisabled" v-model="key" label="Your Key" solo placeholder="Type In Your Key" hide-details></v-text-field>
             <v-btn class="ml-5" height="48" width="100" @click="copyToClipboard">Copy</v-btn>
           </div>
-          <v-btn style="max-width: 100%;" class="my-5" height="48" width="200" @click="pasteFromClipboard">Paste Clipboard</v-btn>
+          <v-btn style="max-width: 100%;" class="mt-5 mb-2" height="48" width="200" @click="pasteFromClipboard">Paste Clipboard</v-btn>
           <v-checkbox
             hide-details
             class="mb-6 mt-3"
@@ -97,6 +97,7 @@
   import Messages from '@/components/Messages.vue';
   import Files from './Files.vue';
   import qrcode from 'qrcode';
+  import axios from 'axios';
 
   function encrypt(data, encryptKey) {
     return cryptoJS.AES.encrypt(JSON.stringify(data), encryptKey).toString();
@@ -136,6 +137,11 @@
     array.set(new Uint8Array(buffer), appendBuffer.byteLength);
     return array;
   }
+
+  const request = axios.create({
+    baseURL: `${process.env.VUE_APP_BACKEND}/api`,
+    withCredentials: true
+  });
 
   export default {
     name: 'Dashboard',
@@ -202,7 +208,7 @@
           this.error = null;
           let { fileDescriptions, filesCount, files } = newMessage;
           
-          fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
+          if(fileDescriptions.length) fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
 
           if(filesCount) {
             await new Promise(async resolve => {
@@ -261,6 +267,7 @@
             this.allMessages.push(newMessage);
             resolve();
           });
+          
           const lastMessage = [...document.querySelectorAll('.message')].pop();
           const lastMessageHeight = parseFloat(getComputedStyle(lastMessage).height.split('px')[0]);
           messagesElement = document.querySelector('#messages');
@@ -280,6 +287,9 @@
         if(key.length < 43) return this.error = 'Key must be 43 length or more!';
         this.error = null;
         this.sendingMessage = true;
+        const { data: { success } } = await request.get('/');
+        if(success == false) return this.logOut();
+
         message = encrypt(message, key);
 
         const importedKey = await crypto.subtle.importKey(
@@ -458,7 +468,7 @@
 
         await new Promise(async resolve => {
           for(const message of this.allMessages) {
-            let { content, fileDescriptions, files } = message;
+            let { content, fileDescriptions } = message;
             content = decrypt(content, key);
 
             if(content) {
@@ -486,6 +496,8 @@
         this.qrCode = qr;
       },
       async generateNewKey() {
+        const { data: { success } } = await request.get('/');
+        if(success == false) return this.logOut();
         const AES_KEY = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
         const { k } = await crypto.subtle.exportKey('jwk', AES_KEY);
         this.key = k;
@@ -503,7 +515,7 @@
       async logout() {
         await this.handleLogout();
       },
-      ...mapActions(['handleGetMessages', 'handleSendMessage', 'handleLogout']),
+      ...mapActions(['handleGetMessages', 'handleSendMessage', 'handleLogout', 'logOut']),
       ...mapMutations(['setFiles', 'setTempDecryptedFiles', 'setMessages', 'setLoading'])
     },
     computed: {

@@ -14,7 +14,8 @@ const routes = [
   route('Dashboard', '/'),
   route('Login', '/login'),
   route('Register', '/register'),
-]
+  { path: '*', redirect: { name: 'Dashboard' } }
+];
 
 const router = new Router({
   routes,

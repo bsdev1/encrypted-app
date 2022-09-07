@@ -9,11 +9,6 @@ const request = axios.create({
   withCredentials: true
 });
 
-const fileRequest = axios.create({
-  baseURL: process.env.VUE_APP_BACKEND,
-  withCredentials: true
-});
-
 Vue.use(Vuex);
 
 function decrypt(data, decryptKey) {
@@ -130,6 +125,10 @@ const store = new Vuex.Store({
         console.log('disconnected');
         socket.connect();
       });
+
+      socket.on('connect_error', err => {
+        console.log(err);
+      });
       
       socket.connect();
 
@@ -159,7 +158,7 @@ const store = new Vuex.Store({
       }
       if(user && !state.user) {
         dispatch('initSocket', user);
-        if(state.path == 'Login' || state.path == 'Register') return router.push('/');
+        if(state.path != 'Dashboard') return router.push('/');
       }
     },
     async handleLogin({ state, dispatch }, { username, password }) {
@@ -173,9 +172,9 @@ const store = new Vuex.Store({
     },
     async handleLogout({ dispatch }) {
       await request.delete('/logout');
-      dispatch('logout');
+      dispatch('logOut');
     },
-    logout({ state, commit }) {
+    logOut({ state, commit }) {
       if(!state.user) return router.push('/login');
       commit('setUser', null);
       state.socket.disconnect();
@@ -191,12 +190,12 @@ const store = new Vuex.Store({
     },
     async handleGetMessages({ dispatch }) {
       const { data: { messages, success } } = await request.get('/messages');
-      if(success == false) return dispatch('logout');
+      if(success == false) return dispatch('logOut');
       return messages.map(message => ({ ...message, files: [] }));
     },
     async handleFetchFiles({ state, commit, dispatch }, { messageId, importedKey, key }) {
       let { data: { files, success } } = await request.get(`/getFiles/${messageId}`);
-      if(success == false) return dispatch('logout');
+      if(success == false) return dispatch('logOut');
 
       if(!files.length) return [];
 
@@ -214,7 +213,7 @@ const store = new Vuex.Store({
               if(state.currentDownload.messageId != messageId) commit('setCurrentDownloadMessage', messageId);
               commit('setCurrentDownloadPercentage', percentage);
             }
-            if(state.setCurrentMultiple != uuid) commit('setCurrentMultiple', uuid);
+            if(state.currentMultiple != uuid) commit('setCurrentMultiple', uuid);
             return chunks.push({ iv, encrypted });
           }
           const name = decrypt(fileName, key);
@@ -264,8 +263,6 @@ const store = new Vuex.Store({
       return state.tempDecryptedFiles;
     },
     async handleFetchFile({ state, commit }, { messageId, uuid, importedKey, key }) {
-      const { data: { success } } = await request.get('/');
-      if(success == false) return dispatch('logout');
       commit('setCurrentMessage', messageId);
       commit('setCurrentFetchedFile', uuid);
 
@@ -321,8 +318,6 @@ const store = new Vuex.Store({
       return state.tempDecryptedFiles;
     },
     async handleSendMessage({ state }, { message, files, fileDescriptions }) {
-      const { data: { success } } = await request.get('/');
-      if(success == false) return dispatch('logout');
       const newMessage = await new Promise(async resolve => {
         state.socket.emit('newMessage', { message, files, fileDescriptions }, newMessage => resolve(newMessage));
       });

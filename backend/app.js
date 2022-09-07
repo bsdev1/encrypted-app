@@ -24,8 +24,8 @@ const File = require('./models/file');
 const FileUpload = require('./models/fileUpload');
 const fs = require('fs/promises');
 const fsDefault = require('fs');
-const history = require('connect-history-api-fallback');
 const uuid = require('uuid');
+const history = require('connect-history-api-fallback');
 
 passportAuth(passport);
 
@@ -59,6 +59,7 @@ app.get('/usersFiles/:file', (req, res, next) => {
   next();
 });
 
+app.disable('x-powered-by');
 app.use(sessionMiddleware);
 app.use(express.json());
 app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public'));
@@ -161,10 +162,10 @@ io.on('connection', socket => {
 
     const author = { id, username, createdAt: userCreatedAt };
 
-    files = files.map(file => ({ ...file, author: id, message: messageId }));
-
-    await File.insertMany(files);
-    await FileUpload.deleteMany({ author: id });
+    if(files.length) {
+      files = files.map(file => ({ ...file, author: id, message: messageId }));
+      await File.insertMany(files);
+    }
     
     const msg = { id: messageId, content, fileDescriptions, author, files, filesCount: files.length, createdAt };
     socket.to(id).emit('newMessage', msg);
