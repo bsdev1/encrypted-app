@@ -53,17 +53,15 @@ if(process.env.NODE_ENV == 'production') {
   }));
 }
 
-app.get('/usersFiles/:file', (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', frontendUrl);
-  res.setHeader('Access-Control-Allow-Credentials', true);
-  next();
-});
-
-app.disable('x-powered-by');
 app.use(sessionMiddleware);
 app.use(express.json());
-app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public'));
 app.use(helmet());
+app.use(helmet.contentSecurityPolicy({
+  directives: {
+    imgSrc: ["'self'", 'blob:', 'data:']
+  }
+}));
+app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public'));
 app.use(cors);
 app.use(passport.initialize());
 app.use(passport.session());
@@ -85,6 +83,23 @@ io.use(wrap(passport.initialize()));
 io.use(wrap(passport.session()));
 
 io.use((socket, next) => socket.request.user ? next() : next(new Error('Unauthorized')));
+
+const withTimeout = (onSuccess, onTimeout, timeout) => {
+  let called = false;
+
+  const timer = setTimeout(() => {
+    if (called) return;
+    called = true;
+    onTimeout();
+  }, timeout);
+
+  return (...args) => {
+    if (called) return;
+    called = true;
+    clearTimeout(timer);
+    onSuccess.apply(this, args);
+  }
+}
 
 io.on('connection', socket => {
   socket.on('connectUser', () => {
@@ -129,16 +144,27 @@ io.on('connection', socket => {
       let iv = chunk.slice(0, 12);
       let encrypted = chunk.slice(12, chunk.length);
       const sequenceNumber = offset / CHUNK_SIZE;
-      const percentage = encryptedFile.length < CHUNK_SIZE ? 100 : ((sequenceNumber / chunksLength.toFixed(0)) * 100).toFixed(0);
-      const finished = encryptedFile.length < CHUNK_SIZE ? true : i + 1 == chunks.length;
+      const isFileLowerThanChunk = encryptedFile.length < CHUNK_SIZE;
+      const percentage = isFileLowerThanChunk ? 100 : ((sequenceNumber / chunksLength.toFixed(0)) * 100).toFixed(0);
+      const finished = isFileLowerThanChunk ? true : i + 1 == chunks.length;
       const obj = { iv, encrypted, finished, uuid, percentage, messageId: messageId.toString() };
       if(finished) {
         obj.fileName = fileName;
         obj.fileType = fileType;
         socket.emit('chunk', obj);
+        await new Promise(resolve => {
+          socket.onAny((eventName, file) => {
+            if(eventName == 'done' && file == uuid) resolve();
+          });
+        });
         cb();
       } else {
         socket.emit('chunk', obj);
+        await new Promise(resolve => {
+          socket.onAny((eventName, file) => {
+            if(eventName == 'done' && file == uuid) resolve();
+          });
+        });
         offset += chunks[i];
       }
     }
@@ -165,6 +191,7 @@ io.on('connection', socket => {
     if(files.length) {
       files = files.map(file => ({ ...file, author: id, message: messageId }));
       await File.insertMany(files);
+      await FileUpload.deleteMany({ author: id });
     }
     
     const msg = { id: messageId, content, fileDescriptions, author, files, filesCount: files.length, createdAt };

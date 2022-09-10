@@ -33,7 +33,7 @@
                   <v-btn small>Download File</v-btn>
                 </a>
                 <div v-if="showable(type)">
-                  <img class="mt-5" v-if="type.startsWith('image')" :src="fileSrc(uuid).src" style="max-width: 100%" height="150" />
+                  <img alt="" class="mt-5" v-if="type.startsWith('image')" :src="fileSrc(uuid).src" style="max-width: 100%" height="150" />
                   <video class="mt-5" v-if="type.startsWith('video')" style="max-width: 100%" height="300" controls>
                     <source :src="fileSrc(uuid).src" />
                   </video>

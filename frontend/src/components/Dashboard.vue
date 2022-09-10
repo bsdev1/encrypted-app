@@ -54,7 +54,7 @@
             :label="`${keyFieldDisabled ? 'Enable Key Field' : 'Disable Key Field'}`"
           ></v-checkbox>
           <div v-if="qrCode" class="mb-5" style="position: relative; width: 148px">
-            <img :src="qrCode" style="border-radius: 3px" />
+            <img alt="" :src="qrCode" style="border-radius: 3px" />
             <div style="background: white; padding: 7px 10px 0 10px; border-radius: 100px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%)">
               <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
                 width="20" height="25" viewBox="0 0 601 601">
@@ -177,7 +177,7 @@
       this.loadingMessages = false;
       await new Promise(resolve => {
         this.allMessages = messages;
-        this.setMessages(messages.map(message => ({ ...message, content: decrypt(message.content, key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content));
+        this.setMessages(messages.map(message => ({ ...message, content: decrypt(message.content, key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: decrypt(item.size, key), type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content));
         resolve();
       });
       let messagesElement = document.querySelector('#messages');
@@ -197,7 +197,7 @@
       );
 
 
-      let chunks = [];
+      let decryptedChunks = [];
 
       const { socket } = this;
 
@@ -208,33 +208,22 @@
           this.error = null;
           let { fileDescriptions, filesCount, files } = newMessage;
           
-          if(fileDescriptions.length) fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
+          if(fileDescriptions.length) fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: decrypt(item.size, key), type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
 
           if(filesCount) {
             await new Promise(async resolve => {
               socket.on('chunk', async ({ uuid, iv, encrypted, fileName, fileType, finished }) => {
-                if(!finished) return chunks.push({ iv, encrypted });
+                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+                decryptedChunks.push(decrypted);
+                socket.emit('done', uuid);
+                if(!finished) return;
                 const name = decrypt(fileName, key);
                 const type = decrypt(fileType, key);
-                if(chunks.length) {
-                  let decryptedChunks = [];
-                  for(const { iv, encrypted } of chunks) {
-                    const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-                    decryptedChunks.push(decrypted);
-                  }
-                  chunks = [];
-                  const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
-                  const src = URL.createObjectURL(file);
-                  this.setTempDecryptedFiles([...this.tempDecryptedFiles, { uuid, src, name, type, notFetched: true }]);
-                  if(this.tempDecryptedFiles.length == filesCount) resolve();
-                } else {
-                  chunks = [];
-                  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-                  const file = new File([decrypted], name, { type });
-                  const src = URL.createObjectURL(file);
-                  this.setTempDecryptedFiles([...this.tempDecryptedFiles, { uuid, src, name, type, notFetched: true }]);
-                  if(this.tempDecryptedFiles.length == filesCount) resolve();
-                }
+                const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
+                const src = URL.createObjectURL(file);
+                this.setTempDecryptedFiles([...this.tempDecryptedFiles, { uuid, src, name, type, notFetched: true }]);
+                decryptedChunks = [];
+                if(this.tempDecryptedFiles.length == filesCount) resolve();
               });
 
               for(const { uuid } of files) {
@@ -317,10 +306,11 @@
         for(const file of files) {
           let offset = 0, progress = [], fileUUID;
 
-          const { name, type, size } = file;
+          let { name, type, size } = file;
 
           const fileName = encrypt(name, key);
           const fileType = encrypt(type, key);
+          size = encrypt(size, key);
 
           await new Promise(resolve => {
             this.socket.emit('createNewFileUpload', uuid => {
@@ -395,7 +385,7 @@
 
         this.setFiles([]);
 
-        const msg = { ...newMessage, files, fileDescriptions: treeItems.map((treeItem, id) => ({ id, ...treeItem })), content: decrypt(newMessage.content, key) };
+        const msg = { ...newMessage, files, fileDescriptions: treeItems.map((treeItem, id) => ({ id, ...treeItem, children: treeItem.children.map(item => ({ ...item, size: decrypt(item.size, key) })) })), content: decrypt(newMessage.content, key) };
 
         await new Promise(resolve => {
           this.setMessages([...this.messages, msg]);
@@ -472,7 +462,7 @@
             content = decrypt(content, key);
 
             if(content) {
-              fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: item.size, type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
+              fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: decrypt(item.size, key), type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
 
               const obj = { ...message, content, files: [], fileDescriptions };
               

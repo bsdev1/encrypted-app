@@ -22,6 +22,19 @@
   resolved "https://registry.yarnpkg.com/@phc/format/-/format-1.0.0.tgz#b5627003b3216dc4362125b13f48a4daa76680e4"
   integrity sha512-m7X9U6BG2+J+R1lSOdCiITLLrxm+cWlNI3HUFA92oLO77ObGNzaKdh8pMLqdZcshtkKuV84olNNXDfMc4FezBQ==
 
+"@socket.io/cluster-adapter@^0.2.0":
+  version "0.2.0"
+  resolved "https://registry.yarnpkg.com/@socket.io/cluster-adapter/-/cluster-adapter-0.2.0.tgz#656e6c5492556dbad5dd3d3f959ba8a70f3f39ed"
+  integrity sha512-CZctHZdBNB9RIR3KBBwLdFKCZwILWeryoGeTHCChTs0vbnbjn2iwgB4AlYJEe0aJsFkwrYo/uY3pMGWNd0YbDQ==
+  dependencies:
+    debug "~4.3.1"
+    socket.io-adapter "~2.4.0"
+
+"@socket.io/sticky@^1.0.1":
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/@socket.io/sticky/-/sticky-1.0.1.tgz#d0ea2f2da7177ba900c7065c92c8af39915fbcdf"
+  integrity sha512-g5vmW25QZ1sDA6/NqgKJHhUKWI6b11BPWqwQBvPTVodGqbYMkfuY7hQtEXDoUPf+0WhySgcdVLf9o2AgOAXUhA==
+
 "@types/component-emitter@^1.2.10":
   version "1.2.11"
   resolved "https://registry.yarnpkg.com/@types/component-emitter/-/component-emitter-1.2.11.tgz#50d47d42b347253817a39709fef03ce66a108506"

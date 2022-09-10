@@ -203,10 +203,13 @@ const store = new Vuex.Store({
 
       commit('setCurrentMessage', messageId);
 
-      let chunks = [], percentages = [];
+      let percentages = [], decryptedChunks = [];
 
       await new Promise(async resolve => {
         state.socket.on('chunk', async ({ iv, encrypted, percentage, messageId, finished, fileName, fileType, uuid }) => {
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+          decryptedChunks.push(decrypted);
+          state.socket.emit('done', uuid);
           if(!finished) {
             if(!percentages.includes(percentage)) {
               percentages.push(percentage);
@@ -214,36 +217,18 @@ const store = new Vuex.Store({
               commit('setCurrentDownloadPercentage', percentage);
             }
             if(state.currentMultiple != uuid) commit('setCurrentMultiple', uuid);
-            return chunks.push({ iv, encrypted });
+            return;
           }
+          percentages = [];
           const name = decrypt(fileName, key);
           const type = decrypt(fileType, key);
-          if(chunks.length) {
-            let decryptedChunks = [];
-            for(const { iv, encrypted } of chunks) {
-              const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-              decryptedChunks.push(decrypted);
-            }
-            chunks = [];
-            percentages = [];
-            const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
-            const src = URL.createObjectURL(file);
-            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
-            if(state.tempDecryptedFiles.length == files.length) {
-              commit('setCurrentDownloadPercentage', 0);
-              resolve();
-            }
-          } else {
-            chunks = [];
-            percentages = [];
-            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-            const file = new File([decrypted], name, { type });
-            const src = URL.createObjectURL(file);
-            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
-            if(state.tempDecryptedFiles.length == files.length) {
-              commit('setCurrentDownloadPercentage', 0);
-              resolve();
-            }
+          const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
+          const src = URL.createObjectURL(file);
+          commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+          decryptedChunks = [];
+          if(state.tempDecryptedFiles.length == files.length) {
+            commit('setCurrentDownloadPercentage', 0);
+            resolve();
           }
         });
   
@@ -266,43 +251,30 @@ const store = new Vuex.Store({
       commit('setCurrentMessage', messageId);
       commit('setCurrentFetchedFile', uuid);
 
-      let chunks = [], percentages = [];
+      let percentages = [], decryptedChunks = [];
 
       await new Promise(resolve => {
         state.socket.on('chunk', async ({ iv, encrypted, percentage, messageId, finished, fileName, fileType, uuid }) => {
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+          decryptedChunks.push(decrypted);
+          state.socket.emit('done', uuid);
           if(!finished) {
             if(!percentages.includes(percentage)) {
               percentages.push(percentage);
               if(state.currentDownload.messageId != messageId) commit('setCurrentDownloadMessage', messageId);
               commit('setCurrentDownloadPercentage', percentage);
             }
-            return chunks.push({ iv, encrypted, percentage });
+            return;
           }
           const name = decrypt(fileName, key);
           const type = decrypt(fileType, key);
-          if(chunks.length) {
-            let decryptedChunks = [];
-            for(const { iv, encrypted } of chunks) {
-              const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-              decryptedChunks.push(decrypted);
-            }
-            const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
-            const src = URL.createObjectURL(file);
-            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
-            commit('setCurrentDownloadPercentage', 0);
-            chunks = [];
-            percentages = [];
-            resolve();
-          } else {
-            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-            const file = new File([decrypted], name, { type });
-            const src = URL.createObjectURL(file);
-            commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
-            commit('setCurrentDownloadPercentage', 0);
-            chunks = [];
-            percentages = [];
-            resolve();
-          }
+          const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
+          const src = URL.createObjectURL(file);
+          commit('setTempDecryptedFiles', [...state.tempDecryptedFiles, { uuid, src, name, type, fileSize: file.size }]);
+          commit('setCurrentDownloadPercentage', 0);
+          percentages = [];
+          decryptedChunks = [];
+          resolve();
         });
         
         state.socket.emit('getChunks', uuid, error => {

@@ -8,6 +8,8 @@
     "dev": "nodemon app.js"
   },
   "dependencies": {
+    "@socket.io/cluster-adapter": "^0.2.0",
+    "@socket.io/sticky": "^1.0.1",
     "argon2": "^0.28.7",
     "connect-history-api-fallback": "^2.0.0",
     "connect-mongo": "^4.6.0",
