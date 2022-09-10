@@ -58,7 +58,8 @@ app.use(express.json());
 app.use(helmet());
 app.use(helmet.contentSecurityPolicy({
   directives: {
-    imgSrc: ["'self'", 'blob:', 'data:']
+    imgSrc: ["'self'", 'blob:', 'data:'],
+    mediaSrc: ["'self'", 'blob:']
   }
 }));
 app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public'));
@@ -83,23 +84,6 @@ io.use(wrap(passport.initialize()));
 io.use(wrap(passport.session()));
 
 io.use((socket, next) => socket.request.user ? next() : next(new Error('Unauthorized')));
-
-const withTimeout = (onSuccess, onTimeout, timeout) => {
-  let called = false;
-
-  const timer = setTimeout(() => {
-    if (called) return;
-    called = true;
-    onTimeout();
-  }, timeout);
-
-  return (...args) => {
-    if (called) return;
-    called = true;
-    clearTimeout(timer);
-    onSuccess.apply(this, args);
-  }
-}
 
 io.on('connection', socket => {
   socket.on('connectUser', () => {

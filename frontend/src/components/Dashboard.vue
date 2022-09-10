@@ -54,7 +54,7 @@
             :label="`${keyFieldDisabled ? 'Enable Key Field' : 'Disable Key Field'}`"
           ></v-checkbox>
           <div v-if="qrCode" class="mb-5" style="position: relative; width: 148px">
-            <img alt="" :src="qrCode" style="border-radius: 3px" />
+            <img alt="" :src="qrCode" width="148" height="148" style="border-radius: 3px" />
             <div style="background: white; padding: 7px 10px 0 10px; border-radius: 100px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%)">
               <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
                 width="20" height="25" viewBox="0 0 601 601">
@@ -210,42 +210,11 @@
           
           if(fileDescriptions.length) fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: decrypt(item.size, key), type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
 
-          if(filesCount) {
-            await new Promise(async resolve => {
-              socket.on('chunk', async ({ uuid, iv, encrypted, fileName, fileType, finished }) => {
-                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-                decryptedChunks.push(decrypted);
-                socket.emit('done', uuid);
-                if(!finished) return;
-                const name = decrypt(fileName, key);
-                const type = decrypt(fileType, key);
-                const file = new File([concatArrayBuffers(decryptedChunks)], name, { type });
-                const src = URL.createObjectURL(file);
-                this.setTempDecryptedFiles([...this.tempDecryptedFiles, { uuid, src, name, type, notFetched: true }]);
-                decryptedChunks = [];
-                if(this.tempDecryptedFiles.length == filesCount) resolve();
-              });
-
-              for(const { uuid } of files) {
-                await new Promise(secondResolve => {
-                  socket.emit('getChunks', uuid, error => {
-                    if(error == 404) files = files.filter(file => file.uuid != uuid);
-                    if(files.length) return secondResolve();
-                    resolve();
-                    secondResolve();
-                  });
-                });
-              }
-            });
-  
-            socket.off('chunk');
-          }
-
           const message = {
             ...newMessage,
             filesCount,
             content: decryptedContent,
-            files: this.tempDecryptedFiles,
+            files: [],
             fileDescriptions
           };
 
