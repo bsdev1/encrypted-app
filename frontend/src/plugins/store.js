@@ -215,7 +215,6 @@ const store = new Vuex.Store({
               percentages.push(percentage);
               if(state.currentDownload.messageId != messageId) commit('setCurrentDownloadMessage', messageId);
               commit('setCurrentDownloadPercentage', percentage);
-              console.log(percentage);
             }
             if(state.currentMultiple != uuid) commit('setCurrentMultiple', uuid);
             return;
