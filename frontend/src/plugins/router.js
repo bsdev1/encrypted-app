@@ -22,10 +22,10 @@ const router = new Router({
   mode: 'history'
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(({ name: toName }, { name: fromName }, next) => {
   store.commit('setLoading', true);
-  store.commit('setPath', to.name);
-  store.commit('setPathFrom', from.name);
+  store.commit('setPath', toName);
+  store.commit('setPathFrom', fromName);
   next();
 });
 

@@ -207,16 +207,18 @@ const store = new Vuex.Store({
 
       await new Promise(async resolve => {
         state.socket.on('chunk', async ({ iv, encrypted, percentage, messageId, finished, fileName, fileType, uuid }) => {
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+          decryptedChunks.push(decrypted);
+          state.socket.emit('done', uuid);
           if(!finished) {
             if(!percentages.includes(percentage)) {
               percentages.push(percentage);
               if(state.currentDownload.messageId != messageId) commit('setCurrentDownloadMessage', messageId);
               commit('setCurrentDownloadPercentage', percentage);
+              console.log(percentage);
             }
             if(state.currentMultiple != uuid) commit('setCurrentMultiple', uuid);
-            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-            state.socket.emit('done', uuid);
-            return decryptedChunks.push(decrypted);
+            return;
           }
           percentages = [];
           const name = decrypt(fileName, key);
@@ -254,15 +256,16 @@ const store = new Vuex.Store({
 
       await new Promise(resolve => {
         state.socket.on('chunk', async ({ iv, encrypted, percentage, messageId, finished, fileName, fileType, uuid }) => {
+          const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
+          decryptedChunks.push(decrypted);
+          state.socket.emit('done', uuid);
           if(!finished) {
             if(!percentages.includes(percentage)) {
               percentages.push(percentage);
               if(state.currentDownload.messageId != messageId) commit('setCurrentDownloadMessage', messageId);
               commit('setCurrentDownloadPercentage', percentage);
             }
-            const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, importedKey, encrypted);
-            state.socket.emit('done', uuid);
-            return decryptedChunks.push(decrypted);
+            return;
           }
           const name = decrypt(fileName, key);
           const type = decrypt(fileType, key);

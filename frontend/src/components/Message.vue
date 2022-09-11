@@ -3,7 +3,6 @@
     <div>by <b>{{ author.username }}</b> - {{ ago(createdAt) }}</div>
     {{ content }}<br>
     <div class="mt-2">
-      <div v-if="fetchingFiles.running && fetchingFiles.type == 'multiple' && currentMessage == id">{{ percentage < 100 ? percentage : 100 }}%</div>
       <v-treeview :items="fileDescriptions" open-on-click rounded>
         <template class="file__label" v-slot:label="{ item: { size, name, type, uuid } }">
           <div v-if="name && uuid">
@@ -43,7 +42,7 @@
                 </div>
               </span>
               <div v-else>
-                <div class="text-caption mt-1" v-if="currentFetchedFile == uuid">{{ currentDownload.percentage < 100 ? currentDownload.percentage : 100 }}%</div>
+                <div class="text-caption mt-1" v-if="currentFetchedFile == uuid || currentMultiple == uuid">{{ currentDownload.percentage < 100 ? currentDownload.percentage : 100 }}%</div>
                 <v-btn small class="d-block mt-2" @click="fetchFile(uuid, id)" :disabled="fetchingFiles.running">{{ currentFetchedFile == uuid ? 'Fetching File...' : currentMultiple == uuid ? '' : 'Fetch File' }}<span v-if="currentMultiple == uuid">Fetching File...</span></v-btn>
               </div>
             </div>
@@ -159,9 +158,6 @@
         let size = 0;
         this.fileDescriptions.forEach(({ children }) => children.forEach(child => size += child.size));
         return size;
-      },
-      percentage() {
-        return ((this.tempDecryptedFiles.length / this.filesCount) * 100).toFixed(0);
       },
       fileSrc() {
         return function(uuid) {

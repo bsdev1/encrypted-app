@@ -35,7 +35,8 @@
             <v-text-field :disabled="sendingMessage" v-model="message" label="Message" solo ref="message" placeholder="Type In Your Message" hide-details></v-text-field>
             <v-btn type="submit" height="48" width="100" class="ml-5 my-auto" :loading="sendingMessage">Send</v-btn>
           </form>
-          <div class="drop__files mt-5 pa-3 py-6" @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)" @dragover="fileDragOver">Drag & Drop Files In Here</div>
+          <div class="drop__files my-5 pa-3 py-6" @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)" @dragover="fileDragOver">Drag & Drop Files In Here</div>
+          <div class="text-caption" v-if="progress">Uploading <b>{{ currentUpload }}</b>...</div>
           <div class="mt-4" style="width: 300px; border-radius: 100px; background: #202020">
             <div :class="progress ? 'pa-2 px-4 progress' : 'progress'" :style="`width: ${progress}%; transition: 0.3s ease; border-radius: 100px; background: #303030;`"><b v-if="progress">{{ progress }}%</b></div>
           </div>
@@ -113,24 +114,6 @@
     }
   }
 
-  function concatArrayBuffers(bufs) {
-    let offset = 0, bytes = 0;
-    bufs.map(buf => {
-      bytes += buf.byteLength;
-      return buf;
-    });
-
-    var buffer = new ArrayBuffer(bytes);
-    var store = new Uint8Array(buffer);
-
-    bufs.forEach(buf => {
-      store.set(new Uint8Array(buf.buffer || buf, buf.byteOffset), offset);
-      offset += buf.byteLength;
-    });
-
-    return buffer;
-  }
-
   function appendBuffer(appendBuffer, buffer) {
     const array = new Uint8Array(appendBuffer.byteLength + buffer.byteLength);
     array.set(new Uint8Array(appendBuffer), 0);
@@ -151,6 +134,7 @@
       message: null,
       error: null,
       qrCode: null,
+      currentUpload: null,
       key: localStorage.getItem('key'),
       loadingMessages: false,
       sendingMessage: false,
@@ -195,9 +179,6 @@
         false,
         ['encrypt', 'decrypt']
       );
-
-
-      let decryptedChunks = [];
 
       const { socket } = this;
 
@@ -277,6 +258,8 @@
 
           let { name, type, size } = file;
 
+          this.currentUpload = name;
+
           const fileName = encrypt(name, key);
           const fileType = encrypt(type, key);
           size = encrypt(size, key);
@@ -337,7 +320,10 @@
           else if(type.startsWith('application/x-msdownload')) appendChildrens('EXECUTABLES', obj);
           else appendChildrens('OTHER', obj);
           children = [];
+          this.setFiles(this.files.slice(1, this.files.length));
         }
+
+        this.currentUpload = null;
 
         const fileDescriptions = treeItems.map(({ name, children }) => ({ name: encrypt(name, key), children: children.map(item => ({ ...item, type: encrypt(item.type, key), name: encrypt(item.name, key) })) }));
 
@@ -351,8 +337,6 @@
           const { uuid } = encryptedFiles[i];
           return { src: URL.createObjectURL(new File([file], name, { type })), name, uuid, type, notFetched: true };
         });
-
-        this.setFiles([]);
 
         const msg = { ...newMessage, files, fileDescriptions: treeItems.map((treeItem, id) => ({ id, ...treeItem, children: treeItem.children.map(item => ({ ...item, size: decrypt(item.size, key) })) })), content: decrypt(newMessage.content, key) };
 
