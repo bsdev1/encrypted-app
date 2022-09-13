@@ -12,7 +12,7 @@
       <v-text-field v-model="username" label="Username" solo placeholder="Type In Your Username"></v-text-field>
       <v-text-field v-model="password" label="Password" solo type="password" placeholder="Type In Your Password"></v-text-field>
       <v-text-field v-model="confirmPassword" label="Confirm Password" type="password" hide-details solo placeholder="Confirm Your Password"></v-text-field>
-      <hcaptcha @verify="verifyCaptcha" class="mt-5 mb-3" :sitekey="process.env.SITE_KEY"></hcaptcha>
+      <hcaptcha @verify="verifyCaptcha" class="mt-5 mb-3" :sitekey="sitekey"></hcaptcha>
       <div class="d-flex">
         <v-btn rounded type="submit" :loading="registering">Register</v-btn>
         <router-link class="ml-auto text-decoration-none" :to="registering ? '' : '/login'"><v-btn rounded>Back To Log In</v-btn></router-link>
@@ -30,6 +30,7 @@
     name: 'Register',
     components: { hcaptcha },
     data: () => ({
+      sitekey: process.env.VUE_APP_SITE_KEY,
       username: null,
       password: null,
       confirmPassword: null,

@@ -14,7 +14,7 @@
       </v-slide-y-transition>
       <v-text-field v-model="username" label="Username" solo placeholder="Type In Your Username"></v-text-field>
       <v-text-field v-model="password" label="Password" solo hide-details type="password" placeholder="Type In Your Password"></v-text-field>
-      <hcaptcha @verify="verifyCaptcha" class="mt-5 mb-3" :sitekey="process.env.SITE_KEY"></hcaptcha>
+      <hcaptcha @verify="verifyCaptcha" class="mt-5 mb-3" :sitekey="sitekey"></hcaptcha>
       <div class="d-flex">
         <v-btn rounded type="submit" :loading="loggingIn">Log In</v-btn>
         <router-link class="ml-auto text-decoration-none" :to="loggingIn ? '' : '/register'"><v-btn rounded>Register</v-btn></router-link>
@@ -38,6 +38,7 @@
     name: 'Login',
     components: { hcaptcha },
     data: () => ({
+      sitekey: process.env.VUE_APP_SITE_KEY,
       username: null,
       password: null,
       error: null,
