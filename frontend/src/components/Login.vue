@@ -13,7 +13,8 @@
         <v-alert class="mb-5" type="success" v-if="newUser">Hello, <b>{{ newUser }}</b>! You can log in now.</v-alert>
       </v-slide-y-transition>
       <v-text-field v-model="username" label="Username" solo placeholder="Type In Your Username"></v-text-field>
-      <v-text-field v-model="password" label="Password" solo type="password" placeholder="Type In Your Password"></v-text-field>
+      <v-text-field v-model="password" label="Password" solo hide-details type="password" placeholder="Type In Your Password"></v-text-field>
+      <hcaptcha @verify="verifyCaptcha" class="mt-5 mb-3" :sitekey="process.env.SITE_KEY"></hcaptcha>
       <div class="d-flex">
         <v-btn rounded type="submit" :loading="loggingIn">Log In</v-btn>
         <router-link class="ml-auto text-decoration-none" :to="loggingIn ? '' : '/register'"><v-btn rounded>Register</v-btn></router-link>
@@ -26,6 +27,7 @@
   import { mapActions, mapMutations, mapState } from 'vuex';
   import router from '../plugins/router';
   import axios from 'axios';
+  import hcaptcha from '@hcaptcha/vue-hcaptcha';
 
   const request = axios.create({
     baseURL: `${process.env.VUE_APP_BACKEND}/api`,
@@ -34,10 +36,12 @@
 
   export default {
     name: 'Login',
+    components: { hcaptcha },
     data: () => ({
       username: null,
       password: null,
       error: null,
+      token: null,
       loggingIn: false,
     }),
     async created() {
@@ -52,12 +56,17 @@
     methods: {
       async login() {
         this.setNewUser(null);
-        const { username, password, handleLogin } = this;
+        const { username, password, token, handleLogin } = this;
         if(!username?.trim() || !password?.trim()) return this.error = 'Fill in all fields!';
+        if(!token?.trim()) return this.error = 'Captcha cannot be empty!';
         this.loggingIn = true;
-        const { errorMessage } = await handleLogin({ username, password });
+        const { errorMessage } = await handleLogin({ username, password, token });
         this.loggingIn = false;
         this.error = errorMessage;
+      },
+      verifyCaptcha(token) {
+        this.token = token;
+        this.error = null;
       },
       ...mapActions(['handleLogin']),
       ...mapMutations(['setNewUser', 'setLoading', 'setUser', 'setSocket'])

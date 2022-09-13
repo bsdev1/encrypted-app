@@ -11,7 +11,8 @@
       </transition-group>
       <v-text-field v-model="username" label="Username" solo placeholder="Type In Your Username"></v-text-field>
       <v-text-field v-model="password" label="Password" solo type="password" placeholder="Type In Your Password"></v-text-field>
-      <v-text-field v-model="confirmPassword" label="Confirm Password" type="password" solo placeholder="Confirm Your Password"></v-text-field>
+      <v-text-field v-model="confirmPassword" label="Confirm Password" type="password" hide-details solo placeholder="Confirm Your Password"></v-text-field>
+      <hcaptcha @verify="verifyCaptcha" class="mt-5 mb-3" :sitekey="process.env.SITE_KEY"></hcaptcha>
       <div class="d-flex">
         <v-btn rounded type="submit" :loading="registering">Register</v-btn>
         <router-link class="ml-auto text-decoration-none" :to="registering ? '' : '/login'"><v-btn rounded>Back To Log In</v-btn></router-link>
@@ -23,15 +24,19 @@
 <script>
   import { mapActions, mapMutations, mapState } from 'vuex';
   import router from '../plugins/router';
+  import hcaptcha from '@hcaptcha/vue-hcaptcha';
 
   export default {
     name: 'Register',
+    components: { hcaptcha },
     data: () => ({
       username: null,
       password: null,
       confirmPassword: null,
+      token: null,
       errors: [],
       registering: false,
+      loadingCaptcha: true,
     }),
     async created() {
       this.setNewUser(null);
@@ -40,15 +45,20 @@
     },
     methods: {
       async register() {
-        const { username, password, confirmPassword, handleRegister } = this;
+        const { username, password, confirmPassword, token, handleRegister } = this;
         if(!username?.trim() || !password?.trim()) return this.errors = ['Fill in all fields!'];
+        if(!token?.trim()) return this.errors = ['Captcha cannot be empty!'];
         if(password != confirmPassword) return this.errors = ['Passwords are not matching!'];
         this.registering = true;
-        const { errors } = await handleRegister({ username, password });
+        const { errors } = await handleRegister({ username, password, token });
         this.registering = false;
         this.errors = errors;
         localStorage.setItem('keyFieldDisabled', 'true');
         localStorage.setItem('key', null);
+      },
+      verifyCaptcha(token) {
+        this.token = token;
+        this.errors = this.errors.filter(error => !error.includes('Captcha'));
       },
       ...mapActions(['handleRegister']),
       ...mapMutations(['setNewUser', 'setLoading'])

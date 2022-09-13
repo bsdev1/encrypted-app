@@ -180,8 +180,8 @@ const store = new Vuex.Store({
       commit('setSocket', null);
       router.push('/login');
     },
-    async handleRegister({ commit }, { username, password }) {
-      const { data: { errors, newUser } } = await request.post('/register', { username, password });
+    async handleRegister({ commit }, { username, password, token }) {
+      const { data: { errors, newUser } } = await request.post('/register', { username, password, token });
       if(errors) return { errors };
       commit('setNewUser', newUser);
       router.push('/login');

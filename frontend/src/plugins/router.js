@@ -1,8 +1,10 @@
 import Vue from 'vue';
 import Router from 'vue-router';
 import store from './store';
+import VueMeta from 'vue-meta';
 
-Vue.use(Router);
+Vue.use(Router)
+  .use(VueMeta);
 
 const route = (name, path) => ({
   name,

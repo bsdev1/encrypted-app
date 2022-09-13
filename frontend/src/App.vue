@@ -31,7 +31,7 @@
   }
 
   .auth-form {
-    width: 500px;
+    width: 700px;
   }
 
   .loader {
@@ -57,7 +57,7 @@
     }
   }
 
-  @media screen and (max-width: 520px) {
+  @media screen and (max-width: 720px) {
     .auth-form { width: 100%; }
   }
 </style>
