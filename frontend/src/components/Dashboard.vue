@@ -167,19 +167,6 @@
       let messagesElement = document.querySelector('#messages');
       messagesElement?.scrollTo({ top: messagesElement.scrollHeight, behavior: 'smooth' });
 
-      const importedKey = await crypto.subtle.importKey(
-        'jwk',
-        {
-          kty: 'oct',
-          k: key,
-          alg: 'A256GCM',
-          ext: true,
-        },
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt', 'decrypt']
-      );
-
       const { socket } = this;
 
       socket.on('newMessage', async newMessage => {
@@ -187,7 +174,7 @@
         const decryptedContent = decrypt(newMessage.content, key);
         if(decryptedContent && key) {
           this.error = null;
-          let { fileDescriptions, filesCount, files } = newMessage;
+          let { fileDescriptions, filesCount } = newMessage;
           
           if(fileDescriptions.length) fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: decrypt(item.size, key), type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
 

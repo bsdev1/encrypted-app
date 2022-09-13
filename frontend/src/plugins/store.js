@@ -177,7 +177,6 @@ const store = new Vuex.Store({
     logOut({ state, commit }) {
       if(!state.user) return router.push('/login');
       commit('setUser', null);
-      state.socket.disconnect();
       commit('setSocket', null);
       router.push('/login');
     },

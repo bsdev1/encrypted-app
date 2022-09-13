@@ -25,6 +25,12 @@
 <script>
   import { mapActions, mapMutations, mapState } from 'vuex';
   import router from '../plugins/router';
+  import axios from 'axios';
+
+  const request = axios.create({
+    baseURL: `${process.env.VUE_APP_BACKEND}/api`,
+    withCredentials: true
+  });
 
   export default {
     name: 'Login',
@@ -34,8 +40,13 @@
       error: null,
       loggingIn: false,
     }),
-    created() {
-      if(this.user) return router.push('/');
+    async created() {
+      if(this.user) {
+        const { data: { user } } = await request.get('/');
+        if(user) return router.push('/');
+        this.setUser(null);
+        this.setSocket(null);
+      }
       this.setLoading(false);
     },
     methods: {
@@ -49,7 +60,7 @@
         this.error = errorMessage;
       },
       ...mapActions(['handleLogin']),
-      ...mapMutations(['setNewUser', 'setLoading'])
+      ...mapMutations(['setNewUser', 'setLoading', 'setUser', 'setSocket'])
     },
     computed: {
       ...mapState(['newUser', 'user', 'loading'])

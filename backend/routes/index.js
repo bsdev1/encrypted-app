@@ -7,7 +7,6 @@ const User = require('../models/user');
 const Message = require('../models/message');
 const File = require('../models/file');
 const { hash } = require('argon2');
-const fs = require('fs/promises');
 
 router.get('/', ensureAuthenticated, (req, res) => {
   res.json({ user: req.user });

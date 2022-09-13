@@ -42,7 +42,7 @@
                 </div>
               </span>
               <div v-else>
-                <div class="text-caption mt-1" v-if="currentFetchedFile == uuid || currentMultiple == uuid">{{ currentDownload.percentage < 100 ? currentDownload.percentage : 100 }}%</div>
+                <div class="text-caption mt-1" v-if="(currentFetchedFile == uuid || currentMultiple == uuid) && size > chunkSize">{{ currentDownload.percentage }}%</div>
                 <v-btn small class="d-block mt-2" @click="fetchFile(uuid, id)" :disabled="fetchingFiles.running">{{ currentFetchedFile == uuid ? 'Fetching File...' : currentMultiple == uuid ? '' : 'Fetch File' }}<span v-if="currentMultiple == uuid">Fetching File...</span></v-btn>
               </div>
             </div>
@@ -58,7 +58,7 @@
           </div>
         </template>
       </v-treeview>
-      <v-btn class="my-2" v-if="currentMessageFiles(id) < filesCount && filesCount && !isFetchedFiles" :disabled="fetchingFiles.running" @click="fetchFiles(id)">{{ fetchingFiles.running && fetchingFiles.type == 'multiple' ? 'Fetching Files' : 'Fetch' }} File(s), {{ filesize(totalSize) }}</v-btn>
+      <v-btn class="my-2" v-if="currentMessageFiles(id) < filesCount && filesCount && !isFetchedFiles" :disabled="fetchingFiles.running" @click="fetchFiles(id)">{{ fetchingFiles.running && fetchingFiles.type == 'multiple' ? 'Fetching' : 'Fetch' }} File(s), {{ filesize(totalSize) }}</v-btn>
     </div>
   </div>
 </template>
@@ -90,7 +90,8 @@
           'application/vnd.ms-excel': 'file-excel',
           'application/x-zip-compressed': 'folder-zip',
         },
-        allowedShowTypes: ['image', 'video', 'audio']
+        allowedShowTypes: ['image', 'video', 'audio'],
+        chunkSize: (1024 * 512) + 28
       }
     },
     methods: {

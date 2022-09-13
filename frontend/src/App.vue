@@ -8,22 +8,18 @@
 </template>
 
 <script>
-  import { mapActions, mapMutations, mapState } from 'vuex';
+  import { mapActions, mapState } from 'vuex';
 
   export default {
     name: 'App',
-    data: () => ({
-      fetching: false,
-    }),
     async created() {
       await this.getDashboard();
     },
     methods: {
-      ...mapActions(['getDashboard']),
-      ...mapMutations(['setLoading'])
+      ...mapActions(['getDashboard'])
     },
     computed: {
-      ...mapState(['path', 'loading'])
+      ...mapState(['path', 'pathFrom'])
     }
   }
 </script>
