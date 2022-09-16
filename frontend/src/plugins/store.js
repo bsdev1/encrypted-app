@@ -161,8 +161,8 @@ const store = new Vuex.Store({
         if(state.path != 'Dashboard') return router.push('/');
       }
     },
-    async handleLogin({ state, dispatch }, { username, password }) {
-      const { data: { errorMessage, user } } = await request.post('/login', { username, password });
+    async handleLogin({ state, dispatch }, { username, password, token }) {
+      const { data: { errorMessage, user } } = await request.post('/login', { username, password, token });
       if(errorMessage) return { errorMessage };
       if(!state.user) {
         await dispatch('initSocket', user);

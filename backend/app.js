@@ -55,14 +55,22 @@ if(process.env.NODE_ENV == 'production') {
 
 app.use(sessionMiddleware);
 app.use(express.json());
-app.use(helmet());
+app.use(helmet({
+  crossOriginEmbedderPolicy: false
+}));
 app.use(helmet.contentSecurityPolicy({
   directives: {
+    scriptSrc: ["'self'", 'https://hcaptcha.com', 'https://*.hcaptcha.com', "'unsafe-inline'"],
+    frameSrc: ["'self'", 'https://hcaptcha.com', 'https://*.hcaptcha.com'],
+    styleSrc: ["'self'", 'https://hcaptcha.com', 'https://*.hcaptcha.com', "'unsafe-inline'"],
+    connectSrc: ["'self'", 'https://hcaptcha.com', 'https://*.hcaptcha.com'],
     imgSrc: ["'self'", 'blob:', 'data:'],
     mediaSrc: ["'self'", 'blob:']
   }
 }));
-app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public'));
+app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public', {
+  etag: false
+}));
 app.use(cors);
 app.use(passport.initialize());
 app.use(passport.session());
@@ -74,6 +82,7 @@ if(process.env.NODE_ENV == 'production') {
 }
 
 // Routes
+
 const indexRouter = require('./routes');
 app.use('/api', indexRouter);
 
