@@ -49,6 +49,7 @@ const store = new Vuex.Store({
     currentMessage: null,
     currentFetchedFile: null,
     currentMultiple: null,
+    currentEditedMessage: null,
     files: [],
     tempDecryptedFiles: [],
     messages: [],
@@ -107,6 +108,9 @@ const store = new Vuex.Store({
     },
     setPathFrom(state, pathFrom) {
       state.pathFrom = pathFrom;
+    },
+    setCurrentEditedMessage(state, currentEditedMessage) {
+      state.currentEditedMessage = currentEditedMessage;
     }
   },
   actions: {
@@ -293,7 +297,17 @@ const store = new Vuex.Store({
         state.socket.emit('newMessage', { message, files, fileDescriptions }, newMessage => resolve(newMessage));
       });
       return newMessage;
-    }
+    },
+    async handleEditMessage({ dispatch }, { id, editMessageContent }) {
+      const { data: { error, success } } = await request.patch(`/editMessage/${id}`, { editMessageContent });
+      if(success == false) return dispatch('logOut');
+      return { error };
+    },
+    async handleRemoveMessage({ dispatch }, id) {
+      const { data: { error, success } } = await request.delete(`/removeMessage/${id}`);
+      if(success == false) return dispatch('logOut');
+      return { error };
+    },
   },
   getters: {
 

@@ -5,9 +5,9 @@
       <v-progress-circular class="mt-8" size="70" width="5" indeterminate></v-progress-circular>
     </div>
     <div class="mx-auto mt-7 mb-6 px-6 pb-6" v-else-if="user" id="dashboard">
-      <div class="d-flex">
+      <div class="user__info d-flex">
         <div class="my-auto mr-7">Hello, <b>{{ user.username }}</b>! &nbsp; {{ date }}</div>
-        <v-btn class="ml-auto" @click="logout">Log Out</v-btn>
+        <v-btn class="ml-auto" id="logout__btn" @click="logout">Log Out</v-btn>
       </div>
       <div class="mt-4">
         <div class="d-flex" v-if="loadingMessages">
@@ -15,8 +15,8 @@
           <div class="ml-5 my-auto">Loading Messages...</div>
         </div>
         <div v-else>
-          <Messages v-if="messages.length" :messages="messages" />
-          <div v-else>
+          <Messages v-if="messages.length" :key="updateMessages" :messages="messages" />
+          <div class="mt-6" v-else>
             No Messages
           </div>
           <v-slide-y-transition>
@@ -32,8 +32,10 @@
               multiple
               style="flex: 0"
             />
-            <v-text-field :disabled="sendingMessage" v-model="message" label="Message" solo ref="message" placeholder="Type In Your Message" hide-details></v-text-field>
-            <v-btn type="submit" height="48" width="100" class="ml-5 my-auto" :loading="sendingMessage">Send</v-btn>
+            <div id="message__input">
+              <v-text-field :disabled="sendingMessage" v-model="message" label="Message" solo placeholder="Type In Your Message" hide-details></v-text-field>
+            </div>
+            <v-btn type="submit" class="send__message__btn ml-5 my-auto" :loading="sendingMessage">Send</v-btn>
           </form>
           <div class="drop__files my-5 pa-3 py-6" @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)" @dragover="fileDragOver">Drag & Drop Files In Here</div>
           <div class="text-caption" v-if="progress">Uploading <b>{{ currentUpload }}</b>...</div>
@@ -42,11 +44,11 @@
           </div>
           <Files :files="files" class="mt-4 mb-7" />
           <div class="text-caption mt-5">Hide it away from other people or share with someone you trust | want to share messages with.</div>
-          <div class="d-flex mt-2">
+          <div class="key__flex d-flex mt-2">
             <v-text-field required @input="keyChange" :disabled="sendingMessage || keyFieldDisabled" v-model="key" label="Your Key" solo placeholder="Type In Your Key" hide-details></v-text-field>
-            <v-btn class="ml-5" height="48" width="100" @click="copyToClipboard">Copy</v-btn>
+            <v-btn class="copy__key__btn ml-5" height="48" width="100" @click="copyToClipboard">Copy</v-btn>
           </div>
-          <v-btn style="max-width: 100%;" class="mt-5 mb-2" height="48" width="200" @click="pasteFromClipboard">Paste Clipboard</v-btn>
+          <v-btn class="paste__clipboard__btn mt-5 mb-2" height="48" width="200" @click="pasteFromClipboard">Paste Clipboard</v-btn>
           <v-checkbox
             hide-details
             class="mb-6 mt-3"
@@ -55,7 +57,7 @@
             :label="`${keyFieldDisabled ? 'Enable Key Field' : 'Disable Key Field'}`"
           ></v-checkbox>
           <div v-if="qrCode" class="mb-5" style="position: relative; width: 148px">
-            <img alt="" :src="qrCode" width="148" height="148" style="border-radius: 3px" />
+            <img alt="" :src="qrCode" id="img__qr__code" />
             <div style="background: white; padding: 7px 10px 0 10px; border-radius: 100px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%)">
               <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
                 width="20" height="25" viewBox="0 0 601 601">
@@ -99,6 +101,7 @@
   import Files from './Files.vue';
   import qrcode from 'qrcode';
   import axios from 'axios';
+  import Vue from 'vue';
 
   function encrypt(data, encryptKey) {
     return cryptoJS.AES.encrypt(JSON.stringify(data), encryptKey).toString();
@@ -138,6 +141,7 @@
       key: localStorage.getItem('key'),
       loadingMessages: false,
       sendingMessage: false,
+      updateMessages: false,
       keyFieldDisabled: localStorage.getItem('keyFieldDisabled') == 'true',
       allMessages: [],
       progress: 0,
@@ -183,7 +187,8 @@
             filesCount,
             content: decryptedContent,
             files: [],
-            fileDescriptions
+            fileDescriptions,
+            edited: false
           };
 
           this.setTempDecryptedFiles([]);
@@ -203,6 +208,23 @@
           return;
         }
         this.allMessages.push(newMessage);
+      });
+
+      socket.on('editedMessage', async ({ id, newContent }) => {
+        const { key } = this;
+
+        await new Promise(resolve => {
+          this.setMessages(this.messages.map(message => message.id == id ? ({ ...message, content: decrypt(newContent, key), edited: true }) : message));
+          this.updateMessages = !this.updateMessages;
+          resolve();
+        });
+
+        messagesElement = document.querySelector('#messages');
+        messagesElement?.scrollTo({ top: messagesElement.scrollHeight });
+      });
+
+      socket.on('removeMessage', id => {
+        this.setMessages(this.messages.filter(message => message.id != id));
       });
     },
     methods: {
@@ -240,8 +262,14 @@
           else treeItems = treeItems.map(item => item.name == folderType ? ({ ...item, children: [...item.children, { uuid, size, name, type }] }) : item);
         }
 
-        for(const file of files) {
-          let offset = 0, progress = [], fileUUID;
+        const uuids = await new Promise(resolve => {
+          this.socket.emit('createFilesUpload', files.length, uuids => resolve(uuids));
+        });
+        
+        for(let i = 0; i < files.length; i++) {
+          let offset = 0, progress = [], fileUUID = uuids[i];
+
+          const file = files[i];
 
           let { name, type, size } = file;
 
@@ -250,13 +278,6 @@
           const fileName = encrypt(name, key);
           const fileType = encrypt(type, key);
           size = encrypt(size, key);
-
-          await new Promise(resolve => {
-            this.socket.emit('createNewFileUpload', uuid => {
-              fileUUID = uuid;
-              resolve();
-            });
-          });
 
           const fileContents = new Uint8Array(await file.arrayBuffer());
           const chunksLength = fileContents.length / CHUNK_SIZE;
@@ -325,7 +346,7 @@
           return { src: URL.createObjectURL(new File([file], name, { type })), name, uuid, type, notFetched: true };
         });
 
-        const msg = { ...newMessage, files, fileDescriptions: treeItems.map((treeItem, id) => ({ id, ...treeItem, children: treeItem.children.map(item => ({ ...item, size: decrypt(item.size, key) })) })), content: decrypt(newMessage.content, key) };
+        const msg = { ...newMessage, files, edited: false, fileDescriptions: treeItems.map((treeItem, id) => ({ id, ...treeItem, children: treeItem.children.map(item => ({ ...item, size: decrypt(item.size, key) })) })), content: decrypt(newMessage.content, key) };
 
         await new Promise(resolve => {
           this.setMessages([...this.messages, msg]);
@@ -475,17 +496,71 @@
     width: initial;
   }
 
+  #img__qr__code {
+    width: 148px;
+    height: 148px;
+    border-radius: 3px;
+  }
+
+  #message__input {
+    width: 100%;
+  }
+  .send__message__btn {
+    height: 48px !important;
+    width: 100px !important;
+  }
+
   .drop__files {
     background-image: linear-gradient(to left, #303030, #202020);
     border-radius: 10px;
     font-weight: bold;
     width: 250px;
     text-align: center;
+    max-width: 100%;
   }
 
   @media screen and (max-width: 1024px) {
     #dashboard {
       width: 100%;
+    }
+  }
+
+  @media screen and (max-width: 700px) {
+    .user__info {
+      display: block !important;
+    }
+    #logout__btn {
+      margin-top: 16px;
+    }
+  }
+
+  @media screen and (max-width: 340px) {
+    .send_message_form {
+      display: block !important;
+    }
+    #message__input {
+      margin: 20px 0 !important;
+    }
+    .send__message__btn {
+      max-width: 100%;
+      font-size: 5vw;
+      width: 100% !important;
+      margin-left: 0 !important;
+    }
+  }
+
+  @media screen and (max-width: 265px) {
+    .paste__clipboard__btn, .copy__key__btn {
+      max-width: 100%;
+      font-size: 5vw;
+    }
+    .copy__key__btn {
+      margin-top: 20px;
+      margin-left: 0 !important;
+      width: 100% !important;
+    }
+    .key__flex {
+      display: block !important;
     }
   }
 </style>

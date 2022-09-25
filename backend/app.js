@@ -100,19 +100,22 @@ io.on('connection', socket => {
   });
   
   socket.on('disconnect', async () => {
-    const author = socket.request.user.id;
-    const fileUploads = await FileUpload.find({ author, finished: false });
-    for(const { fileUUID } of fileUploads) {
-      const path = `./public/usersFiles/${fileUUID}.encrypted`;
+    const author = socket.request.user.id, uploads = socket.request.session.passport.user.uploads ?? [];
+    for(const uuid of uploads) {
+      const path = `./public/usersFiles/${uuid}.encrypted`;
       if(fsDefault.existsSync(path)) fsDefault.unlinkSync(path);
     }
     await FileUpload.deleteMany({ author, finished: false });
+    delete socket.request.session.passport.user.uploads;
   });
 
-  socket.on('createNewFileUpload', async cb => {
-    const author = socket.request.user.id, fileUUID = uuid.v4();
-    await FileUpload.create({ fileUUID, author });
-    cb(fileUUID);
+  socket.on('createFilesUpload', async (filesLength, cb) => {
+    const author = socket.request.user.id;
+    const uploads = Array.from({ length: filesLength }, () => ({ fileUUID: uuid.v4(), author }));
+    await FileUpload.insertMany(uploads);
+    const uuids = uploads.map(({ fileUUID }) => fileUUID);
+    socket.request.session.passport.user.uploads = uuids;
+    cb(uuids);
   });
 
   socket.on('getChunks', async (uuid, cb) => {
@@ -190,6 +193,14 @@ io.on('connection', socket => {
     const msg = { id: messageId, content, fileDescriptions, author, files, filesCount: files.length, createdAt };
     socket.to(id).emit('newMessage', msg);
     cb(msg);
+  });
+
+  socket.on('editedMessage', ({ id, newContent }) => {
+    socket.to(socket.request.user.id).emit('editedMessage', { id, newContent });
+  });
+
+  socket.on('removeMessage', id => {
+    socket.to(socket.request.user.id).emit('removeMessage', id);
   });
 
   const session = socket.request.session;

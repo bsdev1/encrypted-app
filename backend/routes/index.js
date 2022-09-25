@@ -10,7 +10,9 @@ const Message = require('../models/message');
 const File = require('../models/file');
 const { hash } = require('argon2');
 const { verify } = require('hcaptcha');
-const secret = '0xbe280dc7A01423EdC4F72289EA58367D5F8A596F';
+const secret = process.env.NODE_ENV != 'production' ? '0x0000000000000000000000000000000000000000' : '0xbe280dc7A01423EdC4F72289EA58367D5F8A596F';
+const fsDefault = require('fs');
+const fs = require('fs/promises');
 
 router.get('/', ensureAuthenticated, (req, res) => {
   res.json({ user: req.user });
@@ -18,7 +20,7 @@ router.get('/', ensureAuthenticated, (req, res) => {
 
 router.post('/login', ensureNotAuthenticated, async (req, res, next) => {
   const { token } = req.body;
-  const { success } = await verify(secret, token);
+  const { success } = await verify(secret, process.env.NODE_ENV != 'production' ? token : '10000000-aaaa-bbbb-cccc-000000000001');
   if(!success) return res.json({ errorMessage: 'Captcha is invalid!' });
   passport.authenticate('local', (err, user, messageObj) => {
     const errorMessage = messageObj?.message;
@@ -63,6 +65,30 @@ router.get('/messages', ensureAuthenticated, async (req, res) => {
 router.get('/getFiles/:message', ensureAuthenticated, async (req, res) => {
   const files = await File.find({ message: req.params.message, author: req.user.id }).select('uuid fileType fileName -_id');
   res.json({ files });
+});
+
+router.patch('/editMessage/:message', ensureAuthenticated, async (req, res) => {
+  const { editMessageContent } = req.body;
+  const message = await Message.findById(req.params.message);
+  if(!message && message?.author != req.user.id) return res.json({ error: `Message doesn't exists.` });
+  if(!editMessageContent?.trim()) return res.json({ error: 'Edit message cannot be empty.' });
+  message.content = editMessageContent;
+  message.edited = true;
+  await message.save();
+  res.json({ error: null });
+});
+
+router.delete('/removeMessage/:message', ensureAuthenticated, async (req, res) => {
+  const id = req.params.message;
+  const message = await Message.findById(id);
+  if(!message && message?.author != req.user.id) return res.json({ error: `Message doesn't exists.` });
+  const files = await File.find({ message: id, author: req.user.id });
+  for(const { uuid } of files) {
+    const path = `./public/usersFiles/${uuid}.encrypted`;
+    if(fsDefault.existsSync(path)) await fs.unlink(path);
+  }
+  await message.remove();
+  res.json({ error: null });
 });
 
 module.exports = router;

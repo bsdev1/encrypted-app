@@ -1,8 +1,16 @@
 <template>
   <div class="message pr-4 py-2">
-    <div>by <b>{{ author.username }}</b> - {{ ago(createdAt) }}</div>
-    {{ content }}<br>
-    <div class="mt-2">
+    <div class="message__flex d-flex">
+      <div class="message__content pr-7">
+        <div>by <b>{{ author.username }}</b> - {{ moment(createdAt).format('ddd, MMM Do YYYY, h:mm:ss A') }} <div class="text-caption grey--text ml-2 d-inline pb-1" v-if="edited">(edited)</div></div>
+        <MessageContent :content="content" :id="id" @changeEdit="edited = true" />
+      </div>
+      <div class="message__options ml-auto d-flex">
+        <v-btn @click="editMessage(id)" class="edit__message__btn" title="Edit Message" small><mdicon name="pencil" /></v-btn>
+        <v-btn @click="removeMessage(id)" class="delete__message__btn ml-2" title="Delete Message" small><mdicon name="close" /></v-btn>
+      </div>
+    </div>
+    <div class="message__files mt-2">
       <v-treeview :items="fileDescriptions" open-on-click rounded>
         <template class="file__label" v-slot:label="{ item: { size, name, type, uuid } }">
           <div v-if="name && uuid">
@@ -58,16 +66,17 @@
           </div>
         </template>
       </v-treeview>
-      <v-btn class="my-2" v-if="currentMessageFiles(id) < filesCount && filesCount && !isFetchedFiles" :disabled="fetchingFiles.running" @click="fetchFiles(id)">{{ fetchingFiles.running && fetchingFiles.type == 'multiple' ? 'Fetching' : 'Fetch' }} File(s), {{ filesize(totalSize) }}</v-btn>
+      <v-btn class="fetch__files__btn my-2" v-if="currentMessageFiles(id) < filesCount && filesCount && !isFetchedFiles" :disabled="fetchingFiles.running" @click="fetchFiles(id)">{{ fetchingFiles.running && fetchingFiles.type == 'multiple' ? 'Fetching' : 'Fetch' }} File(s), {{ filesize(totalSize) }}</v-btn>
     </div>
   </div>
 </template>
 
 <script>
-  import { format } from 'timeago.js';
   import { mapActions, mapMutations, mapState } from 'vuex';
   import filesize from 'filesize';
   import axios from 'axios';
+  import MessageContent from './MessageContent.vue';
+  import moment from 'moment';
 
   const request = axios.create({
     baseURL: `${process.env.VUE_APP_BACKEND}/api`,
@@ -77,9 +86,11 @@
   export default {
     name: 'Message',
     props: { message: Object },
+    components: { MessageContent },
     data() {
       return {
         ...this.message,
+        deleteMessageError: null,
         filesTypes: {
           'text/html': 'language-html5',
           'text/javascript': 'nodejs',
@@ -95,8 +106,8 @@
       }
     },
     methods: {
+      moment,
       filesize,
-      ago: date => format(date),
       async fetchFiles(messageId) {
         this.setFetchingFiles({ type: 'multiple', running: true });
         const key = localStorage.getItem('key');
@@ -150,11 +161,28 @@
       file(uuid) {
         return (this.files.length ? this.files : this.tempDecryptedFiles).find(file => file.uuid == uuid);
       },
-      ...mapMutations(['setTempDecryptedFiles', 'setFetchingFiles', 'setMessages']),
-      ...mapActions(['handleFetchFiles', 'handleFetchFile', 'logOut'])
+      editMessage(id) {
+        const { currentEditedMessage } = this;
+        if(currentEditedMessage == id) return this.setCurrentEditedMessage(null);
+        this.setCurrentEditedMessage(id);
+      },
+      async removeMessage(id) {
+        const { handleRemoveMessage, messages, setMessages } = this;
+        const { error } = await handleRemoveMessage(id);
+        if(error) return this.deleteMessageError = error;
+        this.deleteMessageError = null;
+        setMessages(messages.filter(message => message.id != id));
+        this.$notify({
+          text: 'Successfully removed a message.',
+          type: 'success'
+        });
+        this.socket.emit('removeMessage', id);
+      },
+      ...mapMutations(['setTempDecryptedFiles', 'setFetchingFiles', 'setMessages', 'setCurrentEditedMessage', 'setMessages']),
+      ...mapActions(['handleFetchFiles', 'handleFetchFile', 'logOut', 'handleRemoveMessage'])
     },
     computed: {
-      ...mapState(['tempDecryptedFiles', 'currentMessage', 'fetchingFiles', 'currentFetchedFile', 'messages', 'currentDownload', 'currentMultiple']),
+      ...mapState(['tempDecryptedFiles', 'currentMessage', 'fetchingFiles', 'currentFetchedFile', 'messages', 'socket', 'currentDownload', 'currentMultiple', 'currentEditedMessage']),
       totalSize() {
         let size = 0;
         this.fileDescriptions.forEach(({ children }) => children.forEach(child => size += child.size));
@@ -180,6 +208,15 @@
 <style scoped>
   .v-treeview ::v-deep(.v-treeview-node__root), .v-treeview ::v-deep(.v-treeview-node__prepend) {
     cursor: default;
+  }
+  .v-treeview ::v-deep(.v-treeview-node__label) {
+    white-space: initial !important;
+  }
+
+  .delete__message__btn, .edit__message__btn, .finish__edit__btn {
+    border-radius: 100px;
+    padding-left: 12px !important;
+    height: 40px !important;
   }
 
   .mdi.mdi-folder, .mdi.mdi-folder-open {
@@ -216,5 +253,36 @@
     background: #404040;
     border-radius: 5px;
     z-index: 99999;
+  }
+
+  @media screen and (max-width: 700px) {
+    .message__flex {
+      display: block !important;
+    }
+    .message__content {
+      padding-right: 0 !important;
+    }
+    .message__options {
+      margin-top: 16px;
+    }
+    .message__files {
+      margin-top: 16px !important;
+    }
+  }
+
+  @media screen and (max-width: 500px) {
+    .v-treeview ::v-deep(.v-treeview-node__children) {
+      margin-left: 0;
+    }
+  }
+
+  @media screen and (max-width: 340px) {
+    .v-treeview ::v-deep(.v-treeview-node__prepend) {
+      display: none;
+    }
+    .fetch__files__btn {
+      max-width: 100% !important;
+      font-size: 3.5vw !important;
+    }
   }
 </style>
