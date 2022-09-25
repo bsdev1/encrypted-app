@@ -20,7 +20,7 @@ router.get('/', ensureAuthenticated, (req, res) => {
 
 router.post('/login', ensureNotAuthenticated, async (req, res, next) => {
   const { token } = req.body;
-  const { success } = await verify(secret, process.env.NODE_ENV != 'production' ? token : '10000000-aaaa-bbbb-cccc-000000000001');
+  const { success } = await verify(secret, process.env.NODE_ENV != 'production' ? '10000000-aaaa-bbbb-cccc-000000000001' : token);
   if(!success) return res.json({ errorMessage: 'Captcha is invalid!' });
   passport.authenticate('local', (err, user, messageObj) => {
     const errorMessage = messageObj?.message;
