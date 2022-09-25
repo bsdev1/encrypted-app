@@ -10,7 +10,7 @@ const Message = require('../models/message');
 const File = require('../models/file');
 const { hash } = require('argon2');
 const { verify } = require('hcaptcha');
-const secret = process.env.NODE_ENV != 'production' ? '0x0000000000000000000000000000000000000000' : '0xd741f8041DaAf4AcF2AA802EE8C9307540874a83';
+const secret = process.env.NODE_ENV != 'production' ? '0x0000000000000000000000000000000000000000' : '0xbe280dc7A01423EdC4F72289EA58367D5F8A596F';
 const fsDefault = require('fs');
 const fs = require('fs/promises');
 
