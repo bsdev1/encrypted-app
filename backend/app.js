@@ -112,6 +112,7 @@ io.on('connection', socket => {
   socket.on('createFilesUpload', async (filesLength, cb) => {
     const author = socket.request.user.id;
     const uploads = Array.from({ length: filesLength }, () => ({ fileUUID: uuid.v4(), author }));
+    console.log(uploads);
     await FileUpload.insertMany(uploads);
     const uuids = uploads.map(({ fileUUID }) => fileUUID);
     socket.request.session.passport.user.uploads = uuids;
@@ -167,13 +168,14 @@ io.on('connection', socket => {
   });
 
   socket.on('uploadChunk', async ({ fileUUID, percentage, encryptedChunk }, cb) => {
+    const author = socket.request.user.id;
     if(percentage == 100) {
       await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk, { encoding: 'utf-8' });
-      const author = socket.request.user.id;
       await FileUpload.deleteOne({ fileUUID, author });
       return cb();
     }
     await fs.appendFile(`./public/usersFiles/${fileUUID}.encrypted`, encryptedChunk, { encoding: 'utf-8' });
+    await FileUpload.deleteOne({ fileUUID, author });
     cb();
   });
 
@@ -185,6 +187,7 @@ io.on('connection', socket => {
     const author = { id, username, createdAt: userCreatedAt };
 
     if(files.length) {
+      socket.request.session.passport.user.uploads = [];
       files = files.map(file => ({ ...file, author: id, message: messageId }));
       await File.insertMany(files);
       await FileUpload.deleteMany({ author: id });

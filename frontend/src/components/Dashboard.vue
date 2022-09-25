@@ -101,12 +101,11 @@
   import Files from './Files.vue';
   import qrcode from 'qrcode';
   import axios from 'axios';
-  import Vue from 'vue';
 
   function encrypt(data, encryptKey) {
     return cryptoJS.AES.encrypt(JSON.stringify(data), encryptKey).toString();
   }
-
+  
   function decrypt(data, decryptKey) {
     try {
       const dataBytes = cryptoJS.AES.decrypt(data.toString(), decryptKey);
