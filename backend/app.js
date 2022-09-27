@@ -112,7 +112,6 @@ io.on('connection', socket => {
   socket.on('createFilesUpload', async (filesLength, cb) => {
     const author = socket.request.user.id;
     const uploads = Array.from({ length: filesLength }, () => ({ fileUUID: uuid.v4(), author }));
-    console.log(uploads);
     await FileUpload.insertMany(uploads);
     const uuids = uploads.map(({ fileUUID }) => fileUUID);
     socket.request.session.passport.user.uploads = uuids;
@@ -179,7 +178,7 @@ io.on('connection', socket => {
     cb();
   });
 
-  socket.on('newMessage', async ({ message, files, fileDescriptions }, cb) => {
+  socket.on('newMessage', async ({ message, edited, files, fileDescriptions }, cb) => {
     if(!message?.trim()) return cb();
     const { id, username, createdAt: userCreatedAt } = socket.request.user;
     const { id: messageId, content, createdAt } = await Message.create({ filesCount: files.length, fileDescriptions, content: message, author: id });
@@ -193,7 +192,7 @@ io.on('connection', socket => {
       await FileUpload.deleteMany({ author: id });
     }
     
-    const msg = { id: messageId, content, fileDescriptions, author, files, filesCount: files.length, createdAt };
+    const msg = { id: messageId, edited, content, fileDescriptions, author, files, filesCount: files.length, createdAt };
     socket.to(id).emit('newMessage', msg);
     cb(msg);
   });

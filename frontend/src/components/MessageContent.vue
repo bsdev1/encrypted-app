@@ -5,21 +5,17 @@
     </v-slide-y-transition>
     <form class="d-flex" @submit.prevent="finishEditMessage(id)">
       <v-text-field height="40" v-model="editMessageContent" label="Edit Message" solo placeholder="Type In Your Edit Message" hide-details dense></v-text-field>
-      <v-btn type="submit" class="finish__edit__btn ml-4"><mdicon name="check" /></v-btn>
+      <v-btn type="submit" :loading="applyingChanges" class="finish__edit__btn ml-4"><mdicon name="check" /></v-btn>
     </form>
   </div>
-  <div v-else>
+  <div class="message__content" v-else>
     {{ messageContent }}
   </div>
 </template>
 
 <script>
   import { mapActions, mapMutations, mapState } from 'vuex';
-  import cryptoJS from 'crypto-js';
-
-  function encrypt(data, encryptKey) {
-    return cryptoJS.AES.encrypt(JSON.stringify(data), encryptKey).toString();
-  }
+  import { encrypt } from '@/plugins/utils';
 
   export default {
     name: 'MessageContent',
@@ -30,8 +26,9 @@
     data() {
       return {
         messageContent: this.content,
+        editMessageContent: this.content,
         editMessageError: null,
-        editMessageContent: this.content
+        applyingChanges: false,
       }
     },
     methods: {
@@ -44,7 +41,9 @@
         }
         if(!editMessageContent?.trim()) return this.editMessageError = 'Edit message cannot be empty.';
         const encryptKey = localStorage.getItem('key');
+        this.applyingChanges = true;
         const { error } = await handleEditMessage({ id, editMessageContent: encrypt(editMessageContent, encryptKey) });
+        this.applyingChanges = false;
         if(error) return this.editMessageError = error;
         setCurrentEditedMessage(null);
         this.messageContent = editMessageContent;
@@ -72,5 +71,9 @@
     border-radius: 100px;
     padding-left: 12px !important;
     height: 40px !important;
+  }
+
+  .message__content {
+    word-break: break-all;
   }
 </style>

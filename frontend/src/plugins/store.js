@@ -1,43 +1,10 @@
 import Vue from 'vue';
 import Vuex from 'vuex';
 import io from 'socket.io-client';
-import axios from 'axios';
 import router from './router';
-import cryptoJS from 'crypto-js';
-const request = axios.create({
-  baseURL: `${process.env.VUE_APP_BACKEND}/api`,
-  withCredentials: true
-});
+import { request, decrypt, concatArrayBuffers } from '@/plugins/utils';
 
 Vue.use(Vuex);
-
-function decrypt(data, decryptKey) {
-  try {
-    const dataBytes = cryptoJS.AES.decrypt(data.toString(), decryptKey);
-    const decryptedData = dataBytes.toString(cryptoJS.enc.Utf8);
-    if(decryptedData) return JSON.parse(decryptedData);
-  } catch {
-    return null;
-  }
-}
-
-function concatArrayBuffers(bufs) {
-  let offset = 0, bytes = 0;
-  bufs.map(buf => {
-    bytes += buf.byteLength;
-    return buf;
-  });
-
-  var buffer = new ArrayBuffer(bytes);
-  var store = new Uint8Array(buffer);
-
-  bufs.forEach(buf => {
-    store.set(new Uint8Array(buf.buffer || buf, buf.byteOffset), offset);
-    offset += buf.byteLength;
-  });
-
-  return buffer;
-}
 
 const store = new Vuex.Store({
   state: {
@@ -294,7 +261,7 @@ const store = new Vuex.Store({
     },
     async handleSendMessage({ state }, { message, files, fileDescriptions }) {
       const newMessage = await new Promise(async resolve => {
-        state.socket.emit('newMessage', { message, files, fileDescriptions }, newMessage => resolve(newMessage));
+        state.socket.emit('newMessage', { message, edited: false, files, fileDescriptions }, newMessage => resolve(newMessage));
       });
       return newMessage;
     },

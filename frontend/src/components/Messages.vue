@@ -16,9 +16,23 @@
   }
 </script>
 
-<style>
+<style lang="scss">
   #messages {
     height: 600px;
     overflow-y: scroll;
+    overflow-x: hidden;
+    &::-webkit-scrollbar {
+      width: 12px;
+    }
+
+    &::-webkit-scrollbar-track {
+      border-radius: 10px;
+      background: #303030;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #222222;
+      border-radius: 10px;
+    }
   }
 </style>

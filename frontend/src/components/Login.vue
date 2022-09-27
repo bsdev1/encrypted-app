@@ -26,13 +26,8 @@
 <script>
   import { mapActions, mapMutations, mapState } from 'vuex';
   import router from '../plugins/router';
-  import axios from 'axios';
   import hcaptcha from '@hcaptcha/vue-hcaptcha';
-
-  const request = axios.create({
-    baseURL: `${process.env.VUE_APP_BACKEND}/api`,
-    withCredentials: true
-  });
+  import { request } from '@/plugins/utils';
 
   export default {
     name: 'Login',

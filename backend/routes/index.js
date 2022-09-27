@@ -1,5 +1,7 @@
 if(process.env.NODE_ENV != 'production') require('dotenv').config();
 
+const { NODE_ENV, captchaSecret, enableRegister } = process.env;
+
 const express = require('express');
 const passport = require('passport');
 const { ensureAuthenticated, ensureNotAuthenticated } = require('../utils/auth');
@@ -10,7 +12,7 @@ const Message = require('../models/message');
 const File = require('../models/file');
 const { hash } = require('argon2');
 const { verify } = require('hcaptcha');
-const secret = process.env.NODE_ENV != 'production' ? '0x0000000000000000000000000000000000000000' : '0xbe280dc7A01423EdC4F72289EA58367D5F8A596F';
+const secret = process.env.NODE_ENV != 'production' ? '0x0000000000000000000000000000000000000000' : captchaSecret;
 const fsDefault = require('fs');
 const fs = require('fs/promises');
 
@@ -19,8 +21,9 @@ router.get('/', ensureAuthenticated, (req, res) => {
 });
 
 router.post('/login', ensureNotAuthenticated, async (req, res, next) => {
-  const { token } = req.body;
-  const { success } = await verify(secret, process.env.NODE_ENV != 'production' ? '10000000-aaaa-bbbb-cccc-000000000001' : token);
+  let { token } = req.body;
+  token = NODE_ENV != 'production' ? '10000000-aaaa-bbbb-cccc-000000000001' : token;
+  const { success } = await verify(secret, token);
   if(!success) return res.json({ errorMessage: 'Captcha is invalid!' });
   passport.authenticate('local', (err, user, messageObj) => {
     const errorMessage = messageObj?.message;
@@ -36,26 +39,23 @@ router.delete('/logout', ensureAuthenticated, (req, res) => {
   req.logOut(() => res.sendStatus(200));
 });
 
-if(process.env.enableRegister == '1') {
-  router.post('/register', ensureNotAuthenticated, [
-    check('username').isLength({ min: 6 }).withMessage('Username need at least 6 characters!').isLength({ max: 40 }).withMessage('Username is too long (max 40 characters).'),
-    check('password').isLength({ min: 9 }).withMessage('Password need at least 9 characters!').isLength({ max: 80 }).withMessage('Password is too long (max 80 characters).'),
-    check('token').isLength({ min: 1 }).withMessage('Captcha is invalid!').isLength({ max: 80 })
-  ], async (req, res) => {
-    let { username, password, token } = req.body;
-    const errors = validationResult(req).errors.map(({ msg }) => msg);
-    if(errors.length) return res.json({ errors });
-    const { success } = await verify(secret, token);
-    if(!success) return res.json({ errors: ['Captcha is invalid!'] });
-    const userExists = await User.exists({ username });
-    if(userExists) return res.json({ errors: ['User already exists!'] });
-    password = await hash(password);
-    const { username: newUser } = await User.create({ username, password });
-    res.json({ newUser });
-  });
-} else {
-  router.post('/register', ensureNotAuthenticated, (_, res) => res.json({ errors: ['Register is disabled by the administrator.'] }));
-}
+router.post('/register', ensureNotAuthenticated, [
+  check('username').isLength({ min: 6 }).withMessage('Username need at least 6 characters!').isLength({ max: 40 }).withMessage('Username is too long (max 40 characters).'),
+  check('password').isLength({ min: 9 }).withMessage('Password need at least 9 characters!').isLength({ max: 80 }).withMessage('Password is too long (max 80 characters).'),
+  check('token').isLength({ min: 1 }).withMessage('Captcha is invalid!').isLength({ max: 80 })
+], isRegisterEnabled, async (req, res) => {
+  let { username, password, token } = req.body;
+  let { errors } = validationResult(req);
+  errors = errors.map(({ msg }) => msg);
+  if(errors.length) return res.json({ errors });
+  const { success } = await verify(secret, token);
+  if(!success) return res.json({ errors: ['Captcha is invalid!'] });
+  const userExists = await User.exists({ username });
+  if(userExists) return res.json({ errors: ['User already exists!'] });
+  password = await hash(password);
+  const { username: newUser } = await User.create({ username, password });
+  res.json({ newUser });
+});
 
 router.get('/messages', ensureAuthenticated, async (req, res) => {
   const messages = await Message.find({ author: req.user.id }).populate('author');
@@ -75,7 +75,7 @@ router.patch('/editMessage/:message', ensureAuthenticated, async (req, res) => {
   message.content = editMessageContent;
   message.edited = true;
   await message.save();
-  res.json({ error: null });
+  res.json({});
 });
 
 router.delete('/removeMessage/:message', ensureAuthenticated, async (req, res) => {
@@ -88,7 +88,12 @@ router.delete('/removeMessage/:message', ensureAuthenticated, async (req, res) =
     if(fsDefault.existsSync(path)) await fs.unlink(path);
   }
   await message.remove();
-  res.json({ error: null });
+  res.json({});
 });
+
+function isRegisterEnabled(req, res, next) {
+  if(enableRegister == '0') return res.json({ errors: ['Register is disabled by the administrator.'] });
+  next();
+}
 
 module.exports = router;

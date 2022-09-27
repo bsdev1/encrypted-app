@@ -2,12 +2,12 @@
   <div class="message pr-4 py-2">
     <div class="message__flex d-flex">
       <div class="message__content pr-7">
-        <div>by <b>{{ author.username }}</b> - {{ moment(createdAt).format('ddd, MMM Do YYYY, h:mm:ss A') }} <div class="text-caption grey--text ml-2 d-inline pb-1" v-if="edited">(edited)</div></div>
+        <div>by <b>{{ author.username }}</b> - {{ moment(createdAt).locale(language).format('ddd, MMM Do YYYY, h:mm:ss A') }} <div class="text-caption grey--text ml-2 d-inline pb-1" v-if="edited">(edited)</div></div>
         <MessageContent :content="content" :id="id" @changeEdit="edited = true" />
       </div>
       <div class="message__options ml-auto d-flex">
-        <v-btn @click="editMessage(id)" class="edit__message__btn" title="Edit Message" small><mdicon name="pencil" /></v-btn>
-        <v-btn @click="removeMessage(id)" class="delete__message__btn ml-2" title="Delete Message" small><mdicon name="close" /></v-btn>
+        <v-btn @click="editMessage(id)" :disabled="applyingChanges" class="message__btn__edit" title="Edit Message" small><mdicon name="pencil" /></v-btn>
+        <v-btn @click="removeMessage(id)" :loading="applyingChanges" class="message__btn__delete ml-2" title="Delete Message" small><mdicon name="close" /></v-btn>
       </div>
     </div>
     <div class="message__files mt-2">
@@ -74,14 +74,9 @@
 <script>
   import { mapActions, mapMutations, mapState } from 'vuex';
   import filesize from 'filesize';
-  import axios from 'axios';
   import MessageContent from './MessageContent.vue';
   import moment from 'moment';
-
-  const request = axios.create({
-    baseURL: `${process.env.VUE_APP_BACKEND}/api`,
-    withCredentials: true
-  });
+  import { request } from '@/plugins/utils';
 
   export default {
     name: 'Message',
@@ -90,7 +85,9 @@
     data() {
       return {
         ...this.message,
+        language: navigator.language,
         deleteMessageError: null,
+        applyingChanges: false,
         filesTypes: {
           'text/html': 'language-html5',
           'text/javascript': 'nodejs',
@@ -168,7 +165,9 @@
       },
       async removeMessage(id) {
         const { handleRemoveMessage, messages, setMessages } = this;
+        this.applyingChanges = true;
         const { error } = await handleRemoveMessage(id);
+        this.applyingChanges = false;
         if(error) return this.deleteMessageError = error;
         this.deleteMessageError = null;
         setMessages(messages.filter(message => message.id != id));
@@ -205,68 +204,76 @@
   }
 </script>
 
-<style scoped>
-  .v-treeview ::v-deep(.v-treeview-node__root), .v-treeview ::v-deep(.v-treeview-node__prepend) {
-    cursor: default;
-  }
-  .v-treeview ::v-deep(.v-treeview-node__label) {
-    white-space: initial !important;
+<style lang="scss" scoped>
+  .v-treeview {
+    &::v-deep(.v-treeview-node__root), &::v-deep(.v-treeview-node__prepend) {
+      cursor: default;
+    }
+
+    &::v-deep(.v-treeview-node__label) {
+      white-space: initial !important;
+    }
+
+    &::v-deep(.v-treeview-node__level) {
+      display: none;
+    }
+
+    &::v-deep(.v-treeview-node__children) {
+      margin-left: 50px;
+      position: relative;
+    }
   }
 
-  .delete__message__btn, .edit__message__btn, .finish__edit__btn {
-    border-radius: 100px;
-    padding-left: 12px !important;
-    height: 40px !important;
+  .message__btn {
+    &__delete, &__edit {
+      border-radius: 100px;
+      padding-left: 12px !important;
+      height: 40px !important;
+    }
   }
 
-  .mdi.mdi-folder, .mdi.mdi-folder-open {
-    cursor: pointer;
-    margin: 0 5px;
+  .mdi {
+    &.mdi-folder, &.mdi-folder-open {
+      cursor: pointer;
+      margin: 0 5px;
+    }
+
+    &.mdi-file-question {
+      margin-left: 20px;
+    }
   }
 
-  .mdi.mdi-file-question {
-    margin-left: 20px;
-  }
+  .file {
+    &__info:hover &__tooltip {
+      translate: 0 0;
+      visibility: visible;
+      opacity: 1;
+    }
 
-  .v-treeview ::v-deep(.v-treeview-node__level) {
-    display: none;
-  }
-
-  .v-treeview ::v-deep(.v-treeview-node__children) {
-    margin-left: 50px;
-    position: relative;
-  }
-
-  .file__info:hover .file__tooltip {
-    translate: 0 0;
-    visibility: visible;
-    opacity: 1;
-  }
-
-  .file__tooltip {
-    position: absolute;
-    translate: 0 -25px;
-    visibility: hidden;
-    opacity: 0;
-    padding: 3px 10px;
-    transition: 0.4s ease;
-    background: #404040;
-    border-radius: 5px;
-    z-index: 99999;
+    &__tooltip {
+      position: absolute;
+      translate: 0 -25px;
+      visibility: hidden;
+      opacity: 0;
+      padding: 3px 10px;
+      transition: 0.4s ease;
+      background: #404040;
+      border-radius: 5px;
+      z-index: 99999;
+    }
   }
 
   @media screen and (max-width: 700px) {
-    .message__flex {
-      display: block !important;
-    }
-    .message__content {
-      padding-right: 0 !important;
-    }
-    .message__options {
-      margin-top: 16px;
-    }
-    .message__files {
-      margin-top: 16px !important;
+    .message {
+      &__flex {
+        display: block !important;
+      }
+      &__content {
+        padding-right: 0 !important;
+      }
+      &__options, &__files {
+        margin-top: 16px !important;
+      }
     }
   }
 
