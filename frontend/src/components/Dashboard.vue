@@ -86,12 +86,11 @@
               </div>
             </div>
             <div v-if="showScanner">
-              <div style="width: 500px; max-width: 100%;">
-                <qrcode-stream class="mt-3 video__radius" @decode="onDecode"></qrcode-stream>
-              </div>
-              <v-btn @click="showScanner = false" class="scan__qr__btn mt-3" small><mdicon name="close" size="15" class="mr-2" /> Close Scanner</v-btn>
+              <qrcode-stream class="qr__video" @decode="onDecode" @init="onScannerInit">
+                <v-btn v-if="!scannerLoading" @click="showScanner = false" class="scan__qr__btn ma-3" small><mdicon name="close" size="15" class="mr-2" /> Close Scanner</v-btn>
+              </qrcode-stream>
             </div>
-            <v-btn v-else @click="showScanner = true" class="scan__qr__btn mt-3" small><mdicon name="camera" size="15" class="mr-2" /> Scan QR Code Instead</v-btn>
+            <v-btn v-else :loading="scannerLoading" @click="showScanner = true" class="scan__qr__btn mt-3" small><mdicon name="camera" size="15" class="mr-2" /> Scan QR Code Instead</v-btn>
           </div>
           <div v-else>
             Loading QR...
@@ -128,6 +127,7 @@
       loadingMessages: false,
       sendingMessage: false,
       updateMessages: false,
+      scannerLoading: false,
       showScanner: false,
       keyFieldDisabled: localStorage.getItem('keyFieldDisabled') == 'true',
       allMessages: [],
@@ -390,6 +390,25 @@
           type: 'success'
         });
       },
+      async onScannerInit(promise) {
+        try {
+          this.scannerLoading = true;
+          await promise;
+          this.scannerLoading = false;
+        } catch (e) {
+          const name = e?.name;
+          if (name == 'NotAllowedError') this.$notify({ text: 'Camera access permission denied!', type: 'error' });
+          else if (name == 'NotFoundError') this.$notify({ text: 'No suitable camera device installed!', type: 'error' });
+          else if (name == 'NotSupportedError') this.$notify({ text: 'Page is not served over HTTPS nor localhost!', type: 'error' });
+          else if (name == 'NotReadableError') this.$notify({ text: 'Your camera might be already in use!', type: 'error' });
+          else if (name == 'OverconstrainedError') this.$notify({ text: 'You requested the front camera although there is none!', type: 'error' });
+          else if (name == 'StreamApiNotSupportedError') this.$notify({ text: 'Your browser seems to be lacking features!', type: 'error' });
+          else this.$notify({ text: 'Unknown camera error!', type: 'error' });
+          this.showScanner = false;
+        } finally {
+          this.scannerLoading = false;
+        }
+      },
       async onDecode(decodedKey) {
         if(this.key == decodedKey) {
           this.$notify({
@@ -527,9 +546,13 @@
     width: 100px !important;
   }
 
-  .video__radius {
-    border-radius: 10px;
-    overflow: hidden;
+  .qr__video {
+    position: absolute;
+    inset: 0;
+    z-index: 9999;
+    transition: 0.3s ease;
+    width: 100%;
+    height: 100%;
   }
 
   .drop__files {

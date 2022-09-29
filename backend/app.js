@@ -65,7 +65,8 @@ app.use(helmet.contentSecurityPolicy({
     styleSrc: ["'self'", 'https://hcaptcha.com', 'https://*.hcaptcha.com', "'unsafe-inline'"],
     connectSrc: ["'self'", 'https://hcaptcha.com', 'https://*.hcaptcha.com'],
     imgSrc: ["'self'", 'blob:', 'data:'],
-    mediaSrc: ["'self'", 'blob:']
+    mediaSrc: ["'self'", 'blob:'],
+    workerSrc: ["'self'", 'blob:']
   }
 }));
 app.use(express.static(process.env.NODE_ENV == 'production' ? 'public/dist' : 'public', {
