@@ -47,8 +47,8 @@
           </div>
           <Files :files="files" class="my-4" />
           <div class="mb-3">
-            <v-btn class="paste__clipboard__btn" @click="pasteFromClipboard" small><mdicon name="content-paste" size="15" class="mr-2" /> Paste Clipboard</v-btn>
-            <v-btn class="generate__key__btn ml-3" @click="generateNewKey" v-if="!keyFieldDisabled" small><mdicon name="key" size="15" class="mr-2" /> Generate New Key</v-btn>
+            <v-btn class="paste__clipboard__btn" :disabled="sendingMessage" @click="pasteFromClipboard" small><mdicon name="content-paste" size="15" class="mr-2" /> Paste Clipboard</v-btn>
+            <v-btn class="generate__key__btn ml-3" :disabled="sendingMessage" @click="generateNewKey" v-if="!keyFieldDisabled" small><mdicon name="key" size="15" class="mr-2" /> Generate New Key</v-btn>
           </div>
           <div class="key__flex d-flex">
             <v-text-field required @input="keyChange" :disabled="sendingMessage || keyFieldDisabled" v-model="key" label="Your Key" solo placeholder="Type In Your Key" hide-details></v-text-field>
@@ -90,7 +90,7 @@
                 <v-btn v-if="!scannerLoading" @click="showScanner = false" class="scan__qr__btn ma-3" small><mdicon name="close" size="15" class="mr-2" /> Close Scanner</v-btn>
               </qrcode-stream>
             </div>
-            <v-btn v-else :loading="scannerLoading" @click="showScanner = true" class="scan__qr__btn mt-3" small><mdicon name="camera" size="15" class="mr-2" /> Scan QR Code Instead</v-btn>
+            <v-btn v-else :loading="scannerLoading" :disabled="sendingMessage" @click="showScanner = true" class="scan__qr__btn mt-3" small><mdicon name="camera" size="15" class="mr-2" /> Scan QR Code Instead</v-btn>
           </div>
           <div v-else>
             Loading QR...
@@ -547,12 +547,12 @@
   }
 
   .qr__video {
-    position: absolute;
+    position: fixed;
     inset: 0;
     z-index: 9999;
     transition: 0.3s ease;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
   }
 
   .drop__files {
