@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <notifications />
+    <notifications position="top left" ignoreDuplicates />
     <v-fade-transition>
       <router-view />
     </v-fade-transition>
@@ -28,6 +28,10 @@
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  }
+
+  .vue-notification {
+    border-radius: 5px;
   }
 
   .auth-form {

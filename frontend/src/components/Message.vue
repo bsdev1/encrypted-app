@@ -6,7 +6,8 @@
         <MessageContent :content="content" :id="id" @changeEdit="edited = true" />
       </div>
       <div class="message__options ml-auto d-flex">
-        <v-btn @click="editMessage(id)" :disabled="applyingChanges" class="message__btn__edit" title="Edit Message" small><mdicon name="pencil" /></v-btn>
+        <v-btn @click="copyMessage(content)" class="message__btn__copy" title="Copy Message" small><mdicon name="content-copy" /></v-btn>
+        <v-btn @click="editMessage(id)" :disabled="applyingChanges" class="message__btn__edit ml-2" title="Edit Message" small><mdicon name="pencil" /></v-btn>
         <v-btn @click="removeMessage(id)" :loading="applyingChanges" class="message__btn__delete ml-2" title="Delete Message" small><mdicon name="close" /></v-btn>
       </div>
     </div>
@@ -163,6 +164,21 @@
         if(currentEditedMessage == id) return this.setCurrentEditedMessage(null);
         this.setCurrentEditedMessage(id);
       },
+      async copyMessage(content) {
+        try {
+          await navigator.clipboard.writeText(content);
+          this.$notify({
+            text: 'Successfully copied a message!',
+            type: 'success'
+          });
+        } catch (e) {
+          console.log(e);
+          this.$notify({
+            text: 'Something went wrong while copying a message!',
+            type: 'error'
+          });
+        }
+      },
       async removeMessage(id) {
         const { handleRemoveMessage, messages, setMessages } = this;
         this.applyingChanges = true;
@@ -225,7 +241,7 @@
   }
 
   .message__btn {
-    &__delete, &__edit {
+    &__delete, &__edit, &__copy {
       border-radius: 100px;
       padding-left: 12px !important;
       height: 40px !important;

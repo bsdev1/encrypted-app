@@ -152,7 +152,20 @@
       this.loadingMessages = false;
       await new Promise(resolve => {
         this.allMessages = messages;
-        this.setMessages(messages.map(message => ({ ...message, content: decrypt(message.content, key), fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: decrypt(item.size, key), type: decrypt(item.type, key), name: decrypt(item.name, key) })) })) })).filter(({ content }) => content));
+        this.setMessages(messages.map(message => ({
+          ...message,
+          content: decrypt(message.content, key),
+          fileDescriptions: message.fileDescriptions.map(({ name, children }, id) => ({
+            id,
+            name: decrypt(name, key),
+            children: children.map(item => ({
+              ...item,
+              size: decrypt(item.size, key),
+              type: decrypt(item.type, key),
+              name: decrypt(item.name, key)
+            }))
+          }))
+        })).filter(({ content }) => content));
         resolve();
       });
       let messagesElement = document.querySelector('#messages');
@@ -441,8 +454,6 @@
 
         this.error = null;
 
-        const previousKey = localStorage.getItem('key');
-
         localStorage.setItem('key', key);
 
         let tempMessages = [];
@@ -454,9 +465,7 @@
 
             if(content) {
               fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({ id, name: decrypt(name, key), children: children.map(item => ({ ...item, size: decrypt(item.size, key), type: decrypt(item.type, key), name: decrypt(item.name, key) })) }));
-
               const obj = { ...message, content, files: [], fileDescriptions };
-              
               tempMessages.push(obj);
             }
           }
