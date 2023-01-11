@@ -1,0 +1,29 @@
+services:
+  app:
+    restart: always
+    image: encrypted-app:1.0
+    ports:
+      - 1000:1000
+    environment:
+      - captchaSecret=0x0000000000000000000000000000000000000000
+      - NODE_ENV=production
+      - sessionSecret=754a747b6761373ec69172443b9f8d7692e166832cd4be1d499fb77359a50bd4b77743afbc32ff5b55f027bf89957a01b68c9130ece12aef80f17c4cd083240c
+      - PORT=1000
+      - mongoUrl=mongodb://admin:password@mongodb/encrypted_app_db
+      - enableRegister=1
+
+  mongodb:
+    image: mongo
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo-data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=encrypted_app_db
+
+volumes:
+  mongo-data:
+    driver: local

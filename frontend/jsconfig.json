@@ -2,19 +2,13 @@
   "compilerOptions": {
     "target": "es5",
     "module": "esnext",
-    "baseUrl": "./",
+    "baseUrl": ".",
     "jsx": "preserve",
     "moduleResolution": "node",
     "paths": {
-      "@/*": [
-        "src/*"
-      ]
+      "@/*": ["src/*"],
+      "@shared/*": ["../shared/*"]
     },
-    "lib": [
-      "esnext",
-      "dom",
-      "dom.iterable",
-      "scripthost"
-    ]
+    "lib": ["esnext", "dom", "dom.iterable", "scripthost"]
   }
 }

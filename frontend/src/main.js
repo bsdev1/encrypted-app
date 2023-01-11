@@ -8,13 +8,11 @@ import * as icons from '@mdi/js';
 import notifications from 'vue-notification';
 import QRScanner from 'vue-qrcode-reader';
 
-Vue.use(notifications)
-  .use(mdi, { icons })
-  .use(QRScanner);
+Vue.use(notifications).use(mdi, { icons }).use(QRScanner);
 
 new Vue({
   store,
   vuetify,
   router,
-  render: h => h(App)
+  render: (h) => h(App),
 }).$mount('#app');

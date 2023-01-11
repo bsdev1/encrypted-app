@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "build": "vue-cli-service build"
   },
   "dependencies": {
     "@hcaptcha/vue-hcaptcha": "^0.3.2",
@@ -36,28 +35,15 @@
     "@babel/eslint-parser": "^7.12.16",
     "@vue/cli-plugin-babel": "~5.0.0",
     "@vue/cli-service": "~5.0.0",
-    "eslint": "^7.32.0",
-    "eslint-plugin-vue": "^8.0.3",
+    "eslint": "^8.31.0",
+    "eslint-config-prettier": "^8.6.0",
+    "eslint-plugin-vue": "^9.8.0",
     "node-sass": "^7.0.1",
     "sass": "~1.32.0",
     "sass-loader": "^13.0.2",
     "vue-cli-plugin-vuetify": "~2.5.4",
     "vue-template-compiler": "^2.6.14",
     "vuetify-loader": "^1.7.0"
-  },
-  "eslintConfig": {
-    "root": true,
-    "env": {
-      "node": true
-    },
-    "extends": [
-      "plugin:vue/essential",
-      "eslint:recommended"
-    ],
-    "parserOptions": {
-      "parser": "@babel/eslint-parser"
-    },
-    "rules": {}
   },
   "browserslist": [
     "> 1%",
