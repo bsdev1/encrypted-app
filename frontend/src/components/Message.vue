@@ -1,26 +1,31 @@
 <template>
-  <div class="message pr-4 py-2">
+  <div class="message pr-4 py-2 pb-4" :data-id="id">
     <div class="message__flex d-flex">
-      <div class="message__content pr-7">
-        <div>
-          by
-          <b>{{ author.username }}</b>
-          -
-          {{
-            moment(createdAt)
-              .locale(language)
-              .format('ddd, MMM Do YYYY, h:mm:ss A')
-          }}
-          <div v-if="edited" class="text-caption grey--text ml-2 d-inline pb-1">
-            (edited)
-          </div>
+      <div class="expiration__progress__wrapper mr-4">
+        <div style="position: relative">
+          <mdicon name="clock-outline" size="18" />
+          <v-progress-circular
+            :key="updateExpiration"
+            class="expiration__progress"
+            size="24"
+            :value="expireProgress"
+          >
+            <v-icon>mdi-folder</v-icon>
+          </v-progress-circular>
         </div>
-        <MessageContent
-          :id="id"
-          :content="content"
-          @change-edit="edited = true"
-        />
+        <div class="expiration__tooltip">
+          Auto-Destruction in about
+          {{ $msToReadeableTime(expiration) }}
+        </div>
       </div>
+
+      <MessageContent
+        :id="id"
+        :key="messageUpdate"
+        :username="author.username"
+        :created-at="createdAt"
+      />
+
       <div class="message__options ml-auto d-flex">
         <v-btn
           class="message__btn__copy"
@@ -50,10 +55,22 @@
         </v-btn>
       </div>
     </div>
-    <div class="message__files mt-2">
+    <div class="message__files">
+      <v-fade-transition>
+        <v-progress-linear
+          v-if="
+            currentMessage == id &&
+            currentParentDownloadPercent > 0 &&
+            currentParentDownloadPercent < 100
+          "
+          :value="currentParentDownloadPercent"
+          color="cyan"
+          class="mt-3 mb-4"
+        ></v-progress-linear>
+      </v-fade-transition>
       <v-treeview :items="fileDescriptions" open-on-click rounded>
         <template
-          #label="{ item: { size, name, type, uuid } }"
+          #label="{ item: { size, name, type, uuid, notFound } }"
           class="file__label"
         >
           <div v-if="name && uuid">
@@ -62,37 +79,67 @@
               style="cursor: default; user-select: text"
             >
               <div class="text-caption d-flex flex-column">
+                <div v-if="notFound" class="red--text font-weight-bold mb-1">
+                  File not found
+                </div>
                 <div>
                   <span class="file__info">
-                    Type: {{ type ? type : 'No Type' }}
+                    <span
+                      :class="{
+                        'text-decoration-line-through grey--text lighten-1':
+                          notFound,
+                      }"
+                    >
+                      Type: {{ type ? type : 'Unknown Type' }}
+                    </span>
                     <div class="file__tooltip">
-                      {{ type ? type : 'No Type' }}
+                      {{ type ? type : 'Unknown Type' }}
                     </div>
                   </span>
                 </div>
                 <div>
                   <span class="file__info">
-                    Name: {{ name }}
+                    <span
+                      :class="{
+                        'text-decoration-line-through grey--text lighten-1':
+                          notFound,
+                      }"
+                    >
+                      Name: {{ name }}
+                    </span>
                     <div class="file__tooltip">{{ name }}</div>
                   </span>
                 </div>
                 <div>
                   <span class="file__info">
-                    File Size: {{ filesize(size) }}
-                    <div class="file__tooltip">{{ filesize(size) }}</div>
+                    <span
+                      :class="{
+                        'text-decoration-line-through grey--text lighten-1':
+                          notFound,
+                      }"
+                    >
+                      File Size: {{ $filesize(size) }}
+                    </span>
+                    <div class="file__tooltip">{{ $filesize(size) }}</div>
                   </span>
                 </div>
               </div>
               <span v-if="fileSrc(uuid)">
-                <a
+                <v-btn
                   v-if="file(uuid) || isFetchedFiles"
-                  target="_blank"
-                  :download="file(uuid).name"
-                  class="font-weight-bold text-decoration-none d-block mt-2"
-                  :href="fileSrc(uuid).src"
+                  small
+                  class="d-block mt-2 pa-0"
                 >
-                  <v-btn small>Download File</v-btn>
-                </a>
+                  <a
+                    target="_blank"
+                    style="height: 28px"
+                    class="d-flex align-center px-3 text-decoration-none white--text"
+                    :download="file(uuid).name"
+                    :href="fileSrc(uuid).src"
+                  >
+                    Download File
+                  </a>
+                </v-btn>
                 <div v-if="showable(type)">
                   <img
                     v-if="type.startsWith('image')"
@@ -123,10 +170,7 @@
               </span>
               <div v-else>
                 <div
-                  v-if="
-                    (currentFetchedFile == uuid || currentMultiple == uuid) &&
-                    size > chunkSize
-                  "
+                  v-if="currentFetchedFile == uuid && size > chunkSize"
                   class="text-caption mt-1"
                 >
                   {{ currentDownload.percentage }}%
@@ -134,27 +178,37 @@
                 <v-btn
                   small
                   class="d-block mt-2"
-                  :disabled="fetchingFiles.running"
+                  :disabled="
+                    fetchingFiles.running ||
+                    notFound ||
+                    (currentFetchedFile && currentFetchedFile != uuid) ||
+                    currentFetchedFile == uuid
+                  "
                   @click="fetchFile(uuid, id)"
                 >
                   {{
                     currentFetchedFile == uuid
                       ? 'Fetching File...'
-                      : currentMultiple == uuid
-                      ? ''
                       : 'Fetch File'
                   }}
-                  <span v-if="currentMultiple == uuid">Fetching File...</span>
                 </v-btn>
               </div>
             </div>
           </div>
           <div v-else>
+            <span v-if="currentFetchedFileParent == name">
+              Downloading from
+            </span>
             {{ name }}
+            <template v-if="currentFetchedFileParent == name">...</template>
           </div>
         </template>
         <template #prepend="{ item: { type, uuid }, open }">
-          <div :class="type && type != 'folder-open' ? 'ml-5' : ''">
+          <div
+            :class="{
+              'ml-3 mt-5': uuid != null && type != 'folder-open',
+            }"
+          >
             <mdicon
               v-if="!type && !uuid"
               :name="open ? 'folder-open' : 'folder'"
@@ -169,7 +223,9 @@
                   : type.startsWith('video')
                   ? 'file-video'
                   : type
-                  ? filesTypes[type]
+                  ? filesTypes[type] != null
+                    ? filesTypes[type]
+                    : 'file-question'
                   : 'file-question'
               "
             />
@@ -178,18 +234,21 @@
       </v-treeview>
       <v-btn
         v-if="
-          currentMessageFiles(id) < filesCount && filesCount && !isFetchedFiles
+          currentMessageFiles(id) < filesCount - filesNotFoundCount &&
+          filesCount - filesNotFoundCount &&
+          !isFetchedFiles
         "
-        class="fetch__files__btn my-2"
-        :disabled="fetchingFiles.running"
+        class="fetch__files__btn my-2 mt-3"
+        :disabled="fetchingFiles.running || currentFetchedFile != null"
         @click="fetchFiles(id)"
       >
+        <mdicon name="download" class="ml-n1 mr-2" />
         {{
           fetchingFiles.running && fetchingFiles.type == 'multiple'
             ? 'Fetching'
             : 'Fetch'
         }}
-        File(s), {{ filesize(totalSize) }}
+        File(s), {{ $filesize(totalSize) }}
       </v-btn>
     </div>
   </div>
@@ -197,21 +256,23 @@
 
 <script>
 import { mapActions, mapMutations, mapState } from 'vuex';
-import filesize from 'filesize';
 import MessageContent from './MessageContent.vue';
-import moment from 'moment';
 import { request } from '@/plugins/utils';
+import { MAXIMUM_CHUNK_SIZE } from '@shared/constants';
+import { importKey } from '@/utils';
 
 export default {
   name: 'Message',
   components: { MessageContent },
   props: { message: Object },
-
   data() {
     return {
       ...this.message,
       language: navigator.language,
       applyingChanges: false,
+      updateExpiration: 0,
+      interval: null,
+      expireProgress: 0,
       filesTypes: {
         'text/html': 'language-html5',
         'text/javascript': 'nodejs',
@@ -223,26 +284,17 @@ export default {
         'application/x-zip-compressed': 'folder-zip',
       },
       allowedShowTypes: ['image', 'video', 'audio'],
-      chunkSize: 1024 * 512 + 28,
+      chunkSize: MAXIMUM_CHUNK_SIZE,
     };
   },
   computed: {
-    ...mapState([
-      'tempDecryptedFiles',
-      'currentMessage',
-      'fetchingFiles',
-      'currentFetchedFile',
-      'messages',
-      'socket',
-      'currentDownload',
-      'currentMultiple',
-      'currentEditedMessage',
-    ]),
     totalSize() {
       let size = 0;
+
       this.fileDescriptions.forEach(({ children }) =>
         children.forEach((child) => (size += child.size))
       );
+
       return size;
     },
     fileSrc() {
@@ -265,59 +317,134 @@ export default {
         this.files.map(({ notFetched }) => notFetched).includes(true)
       );
     },
+    filesNotFoundCount() {
+      return this.fileDescriptions
+        .map((fileDescription) =>
+          fileDescription.children.filter((child) => child.notFound)
+        )
+        .flat(2).length;
+    },
+    currentFetchedFileParent() {
+      const { fileDescriptions, currentFetchedFile } = this;
+
+      const currentDownloadFileParent = fileDescriptions.find(
+        (fileDescription) =>
+          fileDescription.children.find(
+            (child) => child.uuid == currentFetchedFile
+          )
+      );
+
+      return currentDownloadFileParent?.name;
+    },
+    downloadedByParent() {
+      return function (name) {
+        const { files, fileDescriptions } = this;
+
+        const filesIdsInCategory = fileDescriptions
+          .filter((fileDescription) => fileDescription.name == name)
+          .map((fileDescription) =>
+            fileDescription.children.map((child) => child.uuid)
+          )
+          .flat();
+
+        return files.filter((file) => filesIdsInCategory.includes(file.uuid))
+          .length;
+      };
+    },
+    ...mapState([
+      'selectedTime',
+      'currentParentDownloadPercent',
+      'loadingNewMessages',
+      'messageUpdate',
+      'tempDecryptedFiles',
+      'currentMessage',
+      'fetchingFiles',
+      'currentFetchedFile',
+      'messages',
+      'socket',
+      'currentDownload',
+      'currentEditedMessageId',
+    ]),
+  },
+  created() {
+    this.startUpdateExpirationInterval();
   },
   methods: {
-    moment,
-    filesize,
-    async fetchFiles(messageId) {
-      this.setFetchingFiles({ type: 'multiple', running: true });
-      const key = localStorage.getItem('key');
-      const importedKey = await crypto.subtle.importKey(
-        'jwk',
-        {
-          kty: 'oct',
-          k: key,
-          alg: 'A256GCM',
-          ext: true,
-        },
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt', 'decrypt']
+    startUpdateExpirationInterval() {
+      const {
+        createdAt,
+        expiration,
+        setMessages,
+        $getExpireProgress,
+        messages,
+        id,
+      } = this;
+
+      const progress = $getExpireProgress(
+        createdAt,
+        new Date(createdAt).getTime() + expiration
       );
-      let files = await this.handleFetchFiles({ messageId, importedKey, key });
-      this.setFetchingFiles({ type: 'multiple', running: false });
+
+      this.expireProgress = progress;
+      this.updateExpiration = this.updateExpiration == 0 ? 1 : 0;
+
+      if (this.expireProgress >= 100) {
+        clearTimeout(this.interval);
+        return setMessages(messages.filter((message) => message.id != id));
+      }
+
+      this.interval = setTimeout(() => {
+        this.startUpdateExpirationInterval();
+      }, 1000);
+    },
+    async fetchFiles(messageId) {
+      const { setFetchingFiles, setTempDecryptedFiles, handleFetchFiles } =
+        this;
+
+      setFetchingFiles({ type: 'multiple', running: true });
+
+      const importedKey = await importKey();
+
+      let files = await handleFetchFiles({ messageId, importedKey });
+
+      setFetchingFiles({ type: 'multiple', running: false });
+
       files = files.map((file) => ({ ...file, messageId }));
       this.files = [...this.files, ...files];
-      this.setTempDecryptedFiles([]);
+
+      setTempDecryptedFiles([]);
     },
     async fetchFile(uuid, messageId) {
       const {
+        logOut,
+        setFetchingFiles,
+        setTempDecryptedFiles,
+        handleFetchFile,
+        setCurrentFetchedFile,
+      } = this;
+
+      setCurrentFetchedFile(uuid);
+
+      const {
         data: { success },
       } = await request.get('/');
-      if (success == false) return this.logOut();
-      this.setFetchingFiles({ type: 'single', running: true });
-      const key = localStorage.getItem('key');
-      const importedKey = await crypto.subtle.importKey(
-        'jwk',
-        {
-          kty: 'oct',
-          k: key,
-          alg: 'A256GCM',
-          ext: true,
-        },
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt', 'decrypt']
-      );
-      const [file] = await this.handleFetchFile({
+
+      if (success == false) return logOut();
+
+      setFetchingFiles({ type: 'single', running: true });
+
+      const importedKey = await importKey();
+
+      const [file] = await handleFetchFile({
         messageId,
         uuid,
         importedKey,
-        key,
       });
+
       if (file) this.files.push({ ...file, messageId });
-      this.setFetchingFiles({ type: 'single', running: false });
-      this.setTempDecryptedFiles([]);
+
+      setFetchingFiles({ type: 'single', running: false });
+      setTempDecryptedFiles([]);
     },
     isAllowedType(type) {
       return this.allowedShowTypes.filter((allowedType) =>
@@ -329,24 +456,33 @@ export default {
       return isAllowedType(type);
     },
     file(uuid) {
-      return (this.files.length ? this.files : this.tempDecryptedFiles).find(
+      const { files, tempDecryptedFiles } = this;
+
+      return (files.length ? files : tempDecryptedFiles).find(
         (file) => file.uuid == uuid
       );
     },
     editMessage(id) {
-      const { currentEditedMessage } = this;
-      if (currentEditedMessage == id) return this.setCurrentEditedMessage(null);
-      this.setCurrentEditedMessage(id);
+      const {
+        currentEditedMessageId,
+        setCurrentEditedMessageId,
+        setSendMessageError,
+      } = this;
+
+      setSendMessageError(null);
+
+      if (currentEditedMessageId == id) return setCurrentEditedMessageId(null);
+      setCurrentEditedMessageId(id);
     },
     async copyMessage(content) {
       try {
         await navigator.clipboard.writeText(content);
+
         this.$notify({
           text: 'Successfully copied a message!',
           type: 'success',
         });
       } catch (e) {
-        console.log(e);
         this.$notify({
           text: 'Something went wrong while copying a message!',
           type: 'error',
@@ -354,29 +490,53 @@ export default {
       }
     },
     async removeMessage(id) {
-      const { handleRemoveMessage, messages, setMessages } = this;
+      const {
+        handleRemoveMessage,
+        messages,
+        setMessages,
+        $notify,
+        socket,
+        loadingNewMessages,
+        setLoadingNewMessages,
+      } = this;
+
+      const messageElement = [...document.querySelectorAll('.message')].find(
+        (message) => message.getAttribute('data-id') == id
+      );
+
+      if (messageElement.getAttribute('data-next') || loadingNewMessages)
+        return setLoadingNewMessages(false);
+
       this.applyingChanges = true;
+
       const { error } = await handleRemoveMessage(id);
+
       this.applyingChanges = false;
+
       setMessages(messages.filter((message) => message.id != id));
+
       if (error) {
-        return this.$notify({
+        return $notify({
           text: error,
           type: 'error',
         });
       }
-      this.$notify({
+
+      $notify({
         text: 'Successfully removed a message.',
         type: 'success',
       });
-      this.socket.emit('removeMessage', id);
+
+      socket.emit('removeMessage', id);
     },
     ...mapMutations([
+      'setSendMessageError',
+      'setCurrentFetchedFile',
+      'setLoadingNewMessages',
       'setTempDecryptedFiles',
       'setFetchingFiles',
       'setMessages',
-      'setCurrentEditedMessage',
-      'setMessages',
+      'setCurrentEditedMessageId',
     ]),
     ...mapActions([
       'handleFetchFiles',
@@ -389,10 +549,18 @@ export default {
 </script>
 
 <style lang="scss" scoped>
+.fade-transition {
+  &-leave-active {
+    position: absolute;
+    z-index: -9999;
+  }
+}
+
 .v-treeview {
   &::v-deep(.v-treeview-node__root),
   &::v-deep(.v-treeview-node__prepend) {
     cursor: default;
+    margin-bottom: auto;
   }
 
   &::v-deep(.v-treeview-node__label) {
@@ -424,10 +592,6 @@ export default {
   &.mdi-folder-open {
     cursor: pointer;
     margin: 0 5px;
-  }
-
-  &.mdi-file-question {
-    margin-left: 20px;
   }
 }
 
@@ -464,6 +628,10 @@ export default {
       margin-top: 16px !important;
     }
   }
+
+  .expiration__progress__wrapper {
+    margin-bottom: 12px;
+  }
 }
 
 @media screen and (max-width: 500px) {
@@ -480,5 +648,41 @@ export default {
     max-width: 100% !important;
     font-size: 3.5vw !important;
   }
+}
+
+.expiration__progress__wrapper {
+  position: relative;
+  height: 25px;
+}
+
+.expiration__progress__wrapper:hover .expiration__tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.expiration__progress {
+  color: rgb(173, 173, 173);
+  left: 0;
+  position: absolute;
+  top: 1px;
+}
+
+.mdi-clock-outline {
+  margin-left: 3px;
+  color: #5c5b5b;
+}
+
+.expiration__tooltip {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  position: absolute;
+  font-size: 13px;
+  background-color: #303030;
+  border-radius: 10px;
+  top: 30px;
+  width: 120px;
+  padding: 10px;
+  z-index: 9999;
 }
 </style>

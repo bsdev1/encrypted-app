@@ -9,18 +9,13 @@
   "dependencies": {
     "@hcaptcha/vue-hcaptcha": "^0.3.2",
     "@mdi/js": "^7.0.96",
+    "anchorme": "^3.0.5",
     "axios": "^0.27.2",
-    "core-js": "^3.8.3",
     "crypto-js": "^4.1.1",
     "filesize": "^9.0.11",
-    "hex-encode-decode": "^1.0.0",
-    "lz-string": "^1.4.4",
     "mdi-vue": "^3.0.13",
-    "moment": "^2.29.4",
-    "pako": "^2.0.4",
     "qrcode": "^1.5.1",
-    "socket.io-client": "^4.5.1",
-    "timeago.js": "^4.0.2",
+    "socket.io-client": "4.6.2",
     "vue": "^2.6.14",
     "vue-i18n": "^9.2.2",
     "vue-meta": "^2.4.0",
@@ -28,7 +23,8 @@
     "vue-qrcode-reader": "^3.1.0",
     "vue-router": "3.6.0",
     "vuetify": "^2.6.0",
-    "vuex": "3.6.2"
+    "vuex": "3.6.2",
+    "xss": "^1.0.14"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",

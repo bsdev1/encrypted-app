@@ -14,6 +14,7 @@ function decrypt(data, decryptKey) {
   try {
     const dataBytes = cryptoJS.AES.decrypt(data.toString(), decryptKey);
     const decryptedData = dataBytes.toString(cryptoJS.enc.Utf8);
+
     if (decryptedData) return JSON.parse(decryptedData);
   } catch {
     return null;

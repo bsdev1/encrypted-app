@@ -1,244 +1,293 @@
 <template>
-  <div>
-    <div v-if="loading" class="loader d-flex flex-column">
-      <h3>Loading...</h3>
-      <v-progress-circular
-        class="mt-8"
-        size="70"
-        width="5"
-        indeterminate
-      ></v-progress-circular>
-    </div>
-    <div v-else-if="user" id="dashboard" class="mx-auto mt-7 mb-6 px-6 pb-6">
-      <div class="user__info d-flex">
-        <div class="my-auto mr-7">
-          Hello,
-          <b class="mr-1">{{ user.username }}!</b>
-          {{ date }}
-        </div>
-        <v-btn id="logout__btn" class="ml-auto" @click="logout">Log Out</v-btn>
+  <div v-if="user" id="dashboard" class="mx-auto mt-7 mb-6 px-6 pb-6">
+    <div class="user__info d-flex">
+      <div class="my-auto mr-7">
+        Hello,
+        <b class="mr-1">{{ user.username }}!</b>
+        {{ date }}
       </div>
-      <div class="mt-4">
-        <div v-if="loadingMessages" class="d-flex">
-          <v-progress-circular indeterminate></v-progress-circular>
-          <div class="ml-5 my-auto">Loading Messages...</div>
-        </div>
-        <div v-else>
-          <Messages
-            v-if="messages.length"
-            :key="updateMessages"
-            :messages="messages"
-          />
-          <div v-else class="mt-6">No Messages</div>
-          <v-slide-y-transition>
-            <v-alert
-              v-if="error"
-              class="alert_error mt-6 mb-5"
-              type="error"
-              color="red"
-            >
-              {{ error }}
-            </v-alert>
-          </v-slide-y-transition>
-          <form
-            class="d-flex mt-5 send_message_form"
-            @submit.prevent="sendMessage"
+      <v-btn
+        id="logout__btn"
+        class="ml-auto"
+        :loading="loggingOut"
+        @click="logout"
+      >
+        Log Out
+      </v-btn>
+    </div>
+    <h2 class="mt-4">{{ $sayHello() }}</h2>
+    <div class="messages__expire__date d-flex align-center mt-2">
+      <v-checkbox
+        v-model="messagesExpirationEnabled"
+        :label="
+          messagesExpirationEnabled
+            ? 'Disable Message Expiration'
+            : 'Enable Message Expiration'
+        "
+        @change="updateExpirationEnabled"
+      ></v-checkbox>
+      <div>
+        <v-select
+          v-model="selected"
+          hide-details
+          :disabled="messagesExpirationEnabled == false"
+          class="expire__date__select ml-6"
+          :items="$EXPIRE_TIMES"
+          label="Select"
+          outlined
+          @change="updateExpiration"
+        ></v-select>
+      </div>
+    </div>
+    <div class="text-caption grey--text mt-2 mb-2">
+      Note: Enabling this option makes messages automatically remove after
+      certain amount of time (it can be 1 minute off).
+    </div>
+    <v-divider class="mt-4 mb-6"></v-divider>
+    <v-btn v-if="messages.length" small @click="exportChat">
+      <mdicon name="export-variant" size="15" class="export-messages-icon" />
+      Export Messages
+    </v-btn>
+    <div class="mt-4">
+      <div v-if="loadingMessages" class="d-flex">
+        <v-progress-circular indeterminate></v-progress-circular>
+        <div class="ml-5 my-auto">Loading Messages...</div>
+      </div>
+      <template v-else>
+        <Messages v-if="messages.length" />
+        <div v-else>No Messages Yet... Be First!</div>
+        <v-slide-y-transition>
+          <v-alert
+            v-if="sendMessageError"
+            class="alert_error mt-6 mb-5"
+            type="error"
+            color="red"
           >
-            <div id="outer__files__input">
-              <v-file-input
-                v-model="files"
-                hide-details
-                width="30"
-                hide-input
-                solo
-                multiple
-                style="flex: 0"
-              />
-              <div id="files__text">
-                <mdicon name="arrow-left-drop-circle" class="mr-1" />
-                Select Your Files
-              </div>
-            </div>
-            <div id="message__input">
-              <v-text-field
-                ref="messageInput"
-                v-model="message"
-                :disabled="sendingMessage"
-                label="Message"
-                solo
-                placeholder="Type In Your Message"
-                hide-details
-              ></v-text-field>
-            </div>
-            <v-btn
-              type="submit"
-              class="send__message__btn ml-3 my-auto"
-              :loading="sendingMessage"
-            >
-              <mdicon name="send" size="15" class="mr-2" />
-              Send
-            </v-btn>
-          </form>
-          <div
-            class="drop__files my-5 px-4 py-6"
-            @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)"
-            @dragover="fileDragOver"
-          >
-            <mdicon name="file-multiple" size="15" class="mr-2" />
-            Drag & Drop Files Here
-          </div>
-          <div v-if="progress" class="text-caption">
-            Uploading
-            <b>{{ currentUpload }}</b>
-            ...
-          </div>
-          <div
-            class="mt-4"
-            style="width: 300px; border-radius: 100px; background: #202020"
-          >
-            <div
-              :class="progress ? 'pa-2 px-4 progress' : 'progress'"
-              :style="`width: ${progress}%; transition: 0.3s ease; border-radius: 100px; background: #303030;`"
-            >
-              <b v-if="progress">{{ progress }}%</b>
-            </div>
-          </div>
-          <Files :files="files" class="my-4" />
-          <div class="text-caption mt-3 grey--text">
-            Your encryption key
-            <span
-              class="encryption__key__visibility font-weight-bold ml-1"
-              :class="{
-                'green--text': showEncryptionKey,
-                'red--text': !showEncryptionKey,
-              }"
-              @click="showEncryptionKey = showEncryptionKey ? false : true"
-            >
-              ({{ showEncryptionKey ? 'hide' : 'show' }})
-            </span>
-          </div>
-          <div class="key__flex d-flex my-2 mb-4">
-            <v-text-field
-              required
-              :disabled="sendingMessage || keyFieldDisabled"
-              :label="showEncryptionKey ? key : `${key.slice(0, -10)}...`"
+            {{ sendMessageError }}
+          </v-alert>
+        </v-slide-y-transition>
+        <form
+          class="d-flex mt-5 send_message_form"
+          @submit.prevent="sendMessage"
+        >
+          <div id="outer__files__input">
+            <v-file-input
+              v-model="files"
+              hide-details
+              width="30"
+              hide-input
               solo
+              multiple
+              style="flex: 0"
+            />
+            <div id="files__text">
+              <mdicon name="arrow-left-drop-circle" class="mr-1" />
+              Select Your Files
+            </div>
+          </div>
+          <div id="message__input">
+            <v-text-field
+              ref="messageInput"
+              v-model="message"
+              :disabled="sendingMessage"
+              label="Message"
+              solo
+              placeholder="Type In Your Message"
               hide-details
             ></v-text-field>
-            <v-btn
-              class="copy__key__btn ml-3"
-              height="48"
-              width="100"
-              @click="copyToClipboard"
-            >
-              <mdicon name="content-copy" size="15" class="mr-2" />
-              Copy
-            </v-btn>
           </div>
-          <div v-if="qrCode" class="mb-5">
-            <span class="text-caption grey--text">Your Key In QR Code</span>
-            <div
-              class="mt-2"
-              style="width: 148px; height: 148px; position: relative"
-            >
-              <img id="img__qr__code" alt="" :src="qrCode" />
-              <div class="qr__key__icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  xmlns:xlink="http://www.w3.org/1999/xlink"
-                  x="0px"
-                  y="0px"
-                  width="20"
-                  height="25"
-                  viewBox="0 0 601 601"
-                >
-                  <path
-                    d="M68.443,565.926c6.316,0,12.491-1.148,18.357-3.402c2.408-0.928,4.915-1.439,7.06-1.439c1.444,0,3.394,0.23,4.483,1.32
-                      l29.587,29.584c5.955,5.951,13.868,9.23,22.283,9.23s16.328-3.275,22.283-9.23l27.255-27.256
-                      c5.961-5.945,9.248-13.865,9.248-22.287c0-8.42-3.29-16.336-9.257-22.291l-29.575-29.574c-1.462-1.463-1.466-3.848-0.003-5.312
-                      l4.691-4.703c0.899-0.902,1.925-1.094,2.625-1.094s1.723,0.191,2.619,1.09l29.612,29.652c5.958,5.957,13.874,9.238,22.289,9.238
-                      s16.331-3.281,22.283-9.236l27.255-27.252c12.207-12.326,12.207-32.314,0.043-44.596l-29.63-29.631
-                      c-0.906-0.902-1.096-1.938-1.096-2.645c0-0.705,0.19-1.736,1.096-2.643l118.106-118.125c1.57-1.567,4.793-2.623,8.018-2.623
-                      c1.678,0,3.309,0.282,4.594,0.79c17.467,6.916,35.842,10.422,54.611,10.422c38.994,0,75.656-15.162,103.236-42.693
-                      c57.344-57.427,57.34-150.775,0.006-208.107C512.719,15.312,475.754,0,436.432,0c-39.32,0-76.285,15.309-104.088,43.112
-                      c-41.231,41.228-53.894,103.159-32.266,157.777c1.573,3.972,0.683,10.104-1.83,12.619L32.531,479.281
-                      c-9.565,9.555-14.835,22.311-14.835,35.912s5.272,26.355,14.841,35.916C42.087,560.66,54.841,565.926,68.443,565.926z
-                      M390.866,147.162c0-12.207,4.725-23.651,13.299-32.228c8.613-8.611,20.07-13.357,32.268-13.357
-                      c12.195,0,23.654,4.743,32.268,13.357c8.578,8.577,13.299,20.021,13.299,32.228c0,12.206-4.725,23.651-13.299,32.228
-                      c-8.602,8.571-20.064,13.302-32.268,13.302s-23.666-4.728-32.279-13.314C395.588,170.815,390.866,159.371,390.866,147.162z"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div v-if="showScanner">
-              <qrcode-stream
-                class="qr__video"
-                @decode="onDecode"
-                @init="onScannerInit"
-              >
-                <v-btn
-                  v-if="!scannerLoading"
-                  class="scan__qr__btn ma-3"
-                  small
-                  @click="showScanner = false"
-                >
-                  <mdicon name="close" size="15" class="mr-2" />
-                  Close Scanner
-                </v-btn>
-              </qrcode-stream>
-            </div>
-            <v-btn
-              v-else
-              :loading="scannerLoading"
-              :disabled="sendingMessage"
-              class="scan__qr__btn mt-3"
-              small
-              @click="showScanner = true"
-            >
-              <mdicon name="camera" size="15" class="mr-2" />
-
-              Scan QR Code Instead
-            </v-btn>
-          </div>
-          <div v-else>Loading QR...</div>
-          <!-- <div class="d-flex flex-column">
-            <v-btn :class="`${!keyFieldDisabled ? 'mt-3' : 'mb-3'}`" v-if="key && messages.length">Prune Messages For That Key</v-btn>
-            <v-btn :class="`${!keyFieldDisabled ? 'mt-3' : ''}`" v-if="allMessages.length">Prune Messages For All Keys</v-btn>
-          </div> -->
+          <v-btn
+            type="submit"
+            class="send__message__btn ml-3 my-auto"
+            :loading="sendingMessage"
+          >
+            <mdicon name="send" size="15" class="mr-2" />
+            Send
+          </v-btn>
+        </form>
+        <div
+          class="drop__files my-5 px-4 py-6"
+          @drop.prevent="({ dataTransfer }) => fileDrop(dataTransfer)"
+          @dragover="fileDragOver"
+        >
+          <mdicon name="file-multiple" size="15" class="mr-2" />
+          Drag & Drop Files Here
         </div>
-      </div>
+        <div v-if="progress" class="text-caption">
+          Uploading
+          <b>{{ currentUpload }}</b>
+          ...
+        </div>
+        <div
+          class="mt-4"
+          style="width: 300px; border-radius: 100px; background: #202020"
+        >
+          <div
+            :class="progress ? 'pa-2 px-4 progress' : 'progress'"
+            :style="`width: ${progress}%; transition: 0.3s ease; border-radius: 100px; background: #303030;`"
+          >
+            <b v-if="progress">{{ progress }}%</b>
+          </div>
+        </div>
+        <Files :files="files" class="my-4" />
+        <div
+          class="key-options text-caption mt-3 grey--text d-flex align-center flex-wrap"
+        >
+          Your encryption key (keep it safe)
+          <v-btn
+            small
+            class="encryption__key__visibility font-weight-bold"
+            :class="{
+              'light-green darken-1': showEncryptionKey,
+              'red accent-3': !showEncryptionKey,
+            }"
+            @click="showEncryptionKey = showEncryptionKey ? false : true"
+          >
+            <mdicon
+              :name="showEncryptionKey ? 'eye-off' : 'eye'"
+              size="15"
+              class="hide-show-icon"
+            />
+            {{ showEncryptionKey ? 'hide key' : 'show key' }}
+          </v-btn>
+          <v-btn
+            v-if="$isFirefox() == false"
+            small
+            class="paste__clipboard__btn light-green darken-1 font-weight-bold"
+            @click="pasteKeyFromClipboard"
+          >
+            <mdicon
+              name="content-paste"
+              size="15"
+              class="paste-content-icon mr-2"
+            />
+            Paste Key
+          </v-btn>
+          <v-btn
+            class="copy__key__btn font-weight-bold light-blue darken-2"
+            small
+            @click="copyToClipboard"
+          >
+            <mdicon name="content-copy" size="15" class="mr-2" />
+            Copy Key
+          </v-btn>
+        </div>
+        <div class="key__box my-2 mb-4">
+          <v-text-field
+            ref="encryptionKeyInput"
+            readonly
+            :disabled="$isFirefox() == false"
+            placeholder="Paste Encryption Key"
+            :label="showEncryptionKey ? key : `${key.slice(0, -15)}...`"
+            solo
+            hide-details
+          ></v-text-field>
+          <div v-if="$isFirefox()" class="text-caption grey--text mt-2">
+            Note: to change the key, click on above input and paste encryption
+            key
+          </div>
+        </div>
+        <div v-if="qrCode" class="mb-5">
+          <span class="text-caption grey--text">Your Key In QR Code</span>
+          <div
+            class="mt-2"
+            style="width: 148px; height: 148px; position: relative"
+          >
+            <img id="img__qr__code" alt="" :src="qrCode" />
+            <div class="qr__key__icon">
+              <img src="@/assets/key.svg" />
+            </div>
+          </div>
+          <div v-if="showScanner">
+            <qrcode-stream
+              class="qr__video"
+              @decode="onDecode"
+              @init="onScannerInit"
+            >
+              <v-btn
+                v-if="!scannerLoading"
+                class="scan__qr__btn ma-3"
+                small
+                @click="showScanner = false"
+              >
+                <mdicon name="close" size="15" class="mr-2" />
+                Close Scanner
+              </v-btn>
+            </qrcode-stream>
+          </div>
+          <v-btn
+            v-else
+            :loading="scannerLoading"
+            :disabled="sendingMessage"
+            class="scan__qr__btn mt-3"
+            small
+            @click="showScanner = true"
+          >
+            <mdicon name="camera" size="15" class="mr-2" />
+            Scan QR Code Instead
+          </v-btn>
+        </div>
+        <div v-else>Loading QR...</div>
+
+        <ConfirmNukeDialog @nuked-messages="allMessages = []" />
+        <ConfirmNukeKeyDialog />
+
+        <v-btn
+          v-if="key && messages.length"
+          class="mb-3 nuke-btn"
+          @click="() => setNukeKeyDialogOpen(true)"
+        >
+          Nuke Messages For That Key
+        </v-btn>
+        <v-btn
+          v-if="allMessages.length"
+          class="nuke-btn"
+          @click="() => setNukeDialogOpen(true)"
+        >
+          Nuke Messages For All Keys
+        </v-btn>
+      </template>
     </div>
   </div>
 </template>
 
 <script>
-import router from '@/plugins/router';
-import moment from 'moment';
 import { mapActions, mapMutations, mapState } from 'vuex';
 import Messages from '@/components/Messages.vue';
 import Files from './Files.vue';
 import qrcode from 'qrcode';
-
-const APPLICATION_CHUNK_SIZE = 1024 * 512 + 16 + 12;
-const CHUNK_SIZE_BYTES = 1024 * 512;
-
+import {
+  MAXIMUM_CHUNK_SIZE,
+  CHUNK_SIZE,
+  INITIALIZATION_VECTOR,
+  MESSAGES_PAGINATION_NUMBER,
+  convertToMs,
+} from '@shared/constants';
 import { request, encrypt, decrypt, appendBuffer } from '@/plugins/utils';
+import { scrollToBottom, importKey } from '@/utils';
+import ConfirmNukeDialog from '@/components/ConfirmNukeDialog.vue';
+import ConfirmNukeKeyDialog from '@/components/ConfirmNukeKeyDialog.vue';
 
 export default {
   name: 'Dashboard',
-  components: { Messages, Files },
+  components: { Messages, Files, ConfirmNukeDialog, ConfirmNukeKeyDialog },
   data: () => ({
     date: null,
     message: null,
-    error: null,
     qrCode: null,
     currentUpload: null,
-    key: localStorage.getItem('key'),
+    key: localStorage.getItem('key') ?? '',
+    messagesExpirationEnabled:
+      localStorage.getItem('expirationEnabled') == 'false'
+        ? false
+        : localStorage.getItem('expirationEnabled') == 'true'
+        ? true
+        : false,
     loadingMessages: false,
     sendingMessage: false,
     showEncryptionKey: false,
-    updateMessages: false,
     scannerLoading: false,
+    loggingOut: false,
     showScanner: false,
     keyFieldDisabled: localStorage.getItem('keyFieldDisabled') == 'true',
     allMessages: [],
@@ -246,12 +295,16 @@ export default {
   }),
   computed: {
     ...mapState([
+      'selectedTime',
+      'sendMessageError',
+      'allowRequestMessages',
+      'loadingNewMessages',
       'user',
       'socket',
+      'currentPage',
       'files',
       'tempDecryptedFiles',
       'messages',
-      'pathFrom',
       'loading',
       'privateKey',
     ]),
@@ -263,43 +316,68 @@ export default {
         this.$store.commit('setFiles', files);
       },
     },
+    selected: {
+      get() {
+        return this.selectedTime;
+      },
+      set(value) {
+        this.setSelectedTime(value);
+      },
+    },
   },
   async created() {
-    let { user, pathFrom, socket, key } = this;
-    if (!user && (pathFrom == 'Login' || pathFrom == 'Register'))
-      return router.push('/login');
+    let {
+      allowRequestMessages,
+      setAllowRequestMessages,
+      socket,
+      key,
+      setLoading,
+      loading,
+      setQR,
+      handleGetMessages,
+      getDateInterval,
+      setTempDecryptedFiles,
+      setSendMessageError,
+      setMessages,
+      setCurrentPage,
+    } = this;
+
+    if (!allowRequestMessages) {
+      setLoading(false);
+      return setAllowRequestMessages(true);
+    }
+
+    this.loadingMessages = true;
+
+    const { messages, messagesCount: allMessagesLength } =
+      await handleGetMessages();
+
+    if (!messages) return;
+
     if (!key || key.length < 43) {
       const AES_KEY = await crypto.subtle.generateKey(
         { name: 'AES-GCM', length: 256 },
         true,
         ['encrypt', 'decrypt']
       );
+
       const newKey = await crypto.subtle.exportKey('jwk', AES_KEY);
       this.key = newKey.k;
       key = newKey.k;
+
       localStorage.setItem('key', newKey.k);
     }
-    this.date = moment()
-      .locale(navigator.language)
-      .format('dddd, MMMM Do YYYY, h:mm:ss A');
-    setInterval(
-      () =>
-        (this.date = moment()
-          .locale(navigator.language)
-          .format('dddd, MMMM Do YYYY, h:mm:ss A')),
-      1000
-    );
-    this.loadingMessages = true;
-    await new Promise((resolve) => {
-      socket.emit('joinGlobal', () => resolve());
-    });
-    await this.setQR(key);
-    if (this.loading) this.setLoading(false);
-    const messages = await this.handleGetMessages();
+
+    getDateInterval();
+
+    await setQR(key);
+
     this.loadingMessages = false;
+
     await new Promise((resolve) => {
       this.allMessages = messages;
-      this.setMessages(
+
+      setMessages(
         messages
           .map((message) => ({
             ...message,
@@ -308,31 +386,170 @@ export default {
               ({ name, children }, id) => ({
                 id,
                 name: decrypt(name, key),
-                children: children.map((item) => ({
-                  ...item,
-                  size: decrypt(item.size, key),
-                  type: decrypt(item.type, key),
-                  name: decrypt(item.name, key),
+                children: children.map((file) => ({
+                  ...file,
+                  size: decrypt(file.size, key),
+                  type: decrypt(file.type, key),
+                  name: decrypt(file.name, key),
                 })),
               })
             ),
           }))
           .filter(({ content }) => content)
       );
+
       resolve();
     });
 
-    let messagesElement = document.querySelector('#messages');
-    messagesElement?.scrollTo({
-      top: messagesElement.scrollHeight,
-      behavior: 'smooth',
+    let messagesElement = await scrollToBottom();
+
+    if (loading) setLoading(false);
+
+    addEventListener('paste', async (e) => {
+      if (e.target.closest('.key__box')) {
+        const key = (e.clipboardData || window.clipboardData).getData('text');
+
+        try {
+          await importKey(key);
+
+          if (this.key == key) {
+            return this.$notify({
+              text: 'Pasted key is the same as your current key.',
+              type: 'info',
+            });
+          }
+
+          this.key = key;
+
+          this.keyChange();
+          this.$notify({
+            text: 'Successfully inserted the key.',
+            type: 'success',
+          });
+        } catch (e) {
+          this.$notify({
+            type: 'error',
+            text:
+              e?.message.includes('JWK') ||
+              e?.message.includes(
+                'Data provided to an operation does not meet requirements'
+              )
+                ? 'Key is invalid!'
+                : `Pasting failed: ${e?.message ? e.message : 'Unknown error'}`,
+          });
+        } finally {
+          await this.$nextTick();
+
+          this.$refs.encryptionKeyInput.$el.querySelector('input').blur();
+        }
+      }
     });
 
-    socket.on('newMessage', async (newMessage) => {
+    let firstMessage = document.querySelectorAll('.message')[0];
+
+    const topObserver = new IntersectionObserver(async ([entry]) => {
+      if (messages.length == 0) return;
+
+      if (entry.isIntersecting && !this.loadingNewMessages) {
+        this.setLoadingNewMessages(true);
+
+        messagesElement.scrollTo({ top: 0, behavior: 'smooth' });
+
+        const nextPage = this.currentPage + 1;
+
+        const { isLastPagination, messages } = await handleGetMessages(
+          nextPage
+        );
+
+        if (messages.length == 0) {
+          this.setLoadingNewMessages(false);
+          return topObserver.disconnect();
+        }
+
+        const messagesCount = await new Promise((resolve) => {
+          this.allMessages = messages;
+
+          const decryptedMessages = messages
+            .map((message) => ({
+              ...message,
+              content: decrypt(message.content, key),
+              fileDescriptions: message.fileDescriptions.map(
+                ({ name, children }, id) => ({
+                  id,
+                  name: decrypt(name, key),
+                  children: children.map((file) => ({
+                    ...file,
+                    size: decrypt(file.size, key),
+                    type: decrypt(file.type, key),
+                    name: decrypt(file.name, key),
+                  })),
+                })
+              ),
+            }))
+            .filter(({ content }) => content);
+
+          setMessages([...decryptedMessages, ...this.messages]);
+
+          resolve(decryptedMessages.length);
+        });
+
+        await this.$nextTick();
+
+        const middleMessage =
+          document.querySelectorAll('.message')[messagesCount];
+
+        await new Promise((resolve) => {
+          const messagesElement = document.querySelector('#messages');
+
+          const childPosition =
+            middleMessage.offsetTop - messagesElement.offsetTop;
+
+          const middle =
+            childPosition -
+            messagesElement.offsetHeight / 2 +
+            middleMessage.offsetHeight / 2;
+
+          messagesElement.scrollTo({
+            top: middle,
+          });
+
+          resolve();
+        });
+
+        const currentFirstMessage = document.querySelectorAll('.message')[0];
+
+        topObserver.disconnect();
+
+        if (!isLastPagination) {
+          topObserver.observe(currentFirstMessage);
+
+          firstMessage.removeAttribute('data-next');
+
+          firstMessage = document.querySelectorAll('.message')[0];
+
+          firstMessage.setAttribute('data-next', nextPage + 1);
+        } else {
+          firstMessage.removeAttribute('data-next');
+        }
+
+        setCurrentPage(nextPage);
+
+        this.setLoadingNewMessages(false);
+      }
+    });
+
+    if (firstMessage && allMessagesLength > MESSAGES_PAGINATION_NUMBER) {
+      firstMessage.setAttribute('data-next', this.currentPage + 1);
+      topObserver.observe(firstMessage);
+    }
+
+    socket?.on('newMessage', async (newMessage) => {
       const { key } = this;
+
       const decryptedContent = decrypt(newMessage.content, key);
+
       if (decryptedContent && key) {
-        this.error = null;
+        setSendMessageError(null);
         let { fileDescriptions, filesCount } = newMessage;
 
         if (fileDescriptions.length)
@@ -351,15 +568,16 @@ export default {
           ...newMessage,
           filesCount,
           content: decryptedContent,
+          expiration: newMessage.expiration,
           files: [],
           fileDescriptions,
           edited: false,
         };
 
-        this.setTempDecryptedFiles([]);
+        setTempDecryptedFiles([]);
 
         await new Promise((resolve) => {
-          this.setMessages([...this.messages, message]);
+          setMessages([...this.messages, message]);
           this.allMessages.push(newMessage);
           resolve();
         });
@@ -368,250 +586,292 @@ export default {
         const lastMessageHeight = parseFloat(
           getComputedStyle(lastMessage).height.split('px')[0]
         );
+
         messagesElement = document.querySelector('#messages');
+
         const { scrollHeight, scrollTop, clientHeight } = messagesElement;
+
         if (this.allMessages.length > 8)
           return messagesElement.scrollTo({
             top: scrollHeight,
             behavior: 'smooth',
           });
+
         if (scrollHeight - (scrollTop + lastMessageHeight) == clientHeight)
           messagesElement.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+
         return;
       }
+
       this.allMessages.push(newMessage);
     });
 
-    socket.on('editedMessage', async ({ id, newContent }) => {
-      const { key } = this;
-
-      await new Promise((resolve) => {
-        this.setMessages(
-          this.messages.map((message) =>
-            message.id == id
-              ? { ...message, content: decrypt(newContent, key), edited: true }
-              : message
-          )
-        );
-        this.updateMessages = !this.updateMessages;
-        resolve();
-      });
-
-      messagesElement = document.querySelector('#messages');
-      messagesElement?.scrollTo({ top: messagesElement.scrollHeight });
+    socket?.on('allMessagesNuked', () => {
+      setMessages([]);
     });
 
-    socket.on('removeMessage', (id) => {
-      this.setMessages(this.messages.filter((message) => message.id != id));
+    socket?.on('editedMessage', async ({ id, newContent }) => {
+      const { key } = this;
+
+      const message = this.messages.find((message) => message.id == id);
+
+      this.$set(message, 'content', decrypt(newContent, key));
+      this.$set(message, 'edited', true);
+
+      this.updateMessage();
+    });
+
+    socket?.on('removeMessage', (id) => {
+      setMessages(this.messages.filter((message) => message.id != id));
     });
   },
   methods: {
+    updateExpiration() {
+      localStorage.setItem('selectedExpirationTime', this.selected);
+    },
+    updateExpirationEnabled() {
+      localStorage.setItem('expirationEnabled', this.messagesExpirationEnabled);
+    },
+    async exportChat() {
+      const { key, handleExportChat } = this;
+
+      await handleExportChat(key);
+    },
     async sendMessage() {
-      let { message, key, files } = this;
-      if (!message?.trim()) return (this.error = 'Message cannot be empty!');
-      if (!key) return (this.error = 'Key cannot be empty!');
+      let { message, key, files, logOut, setSendMessageError } = this;
+      if (!message?.trim())
+        return setSendMessageError('Message cannot be empty!');
+
+      if (!key) return setSendMessageError('Key cannot be empty!');
       if (key.length < 43)
-        return (this.error = 'Key must be 43 length or more!');
-      this.error = null;
+        return setSendMessageError('Key must be 43 length or more!');
+
+      setSendMessageError(null);
       this.sendingMessage = true;
-      const {
-        data: { success },
-      } = await request.get('/');
-      if (success == false) return this.logOut();
 
-      message = encrypt(message, key);
+      try {
+        const {
+          data: { success },
+        } = await request.get('/');
 
-      const importedKey = await crypto.subtle.importKey(
-        'jwk',
-        { kty: 'oct', k: key, alg: 'A256GCM' },
-        { name: 'AES-GCM' },
-        true,
-        ['encrypt', 'decrypt']
-      );
+        if (success == false) return logOut();
 
-      const encryptedFiles = [];
+        message = encrypt(message, key);
 
-      let chunks = [],
-        children = [],
-        treeItems = [];
+        const importedKey = await importKey();
 
-      const appendChildrens = (folderType, { name, type, size, uuid }) => {
-        children.push({ name, type, size, uuid });
-        if (!treeItems.find((item) => item.name == folderType))
-          treeItems = [...treeItems, { name: folderType, children }];
-        else
-          treeItems = treeItems.map((item) =>
-            item.name == folderType
-              ? {
-                  ...item,
-                  children: [...item.children, { uuid, size, name, type }],
-                }
-              : item
+        const encryptedFiles = [];
+
+        let chunks = [],
+          children = [],
+          treeItems = [];
+
+        const appendChildren = (folderType, { name, type, size, uuid }) => {
+          children.push({ name, type, size, uuid });
+
+          const subfolderFound = treeItems.find(
+            (item) => item.name == folderType
           );
-      };
 
-      if (files.length) {
-        const uuids = await new Promise((resolve) => {
-          this.socket.emit('createFilesUpload', files.length, (uuids) =>
-            resolve(uuids)
-          );
-        });
-
-        for (let i = 0; i < files.length; i++) {
-          let offset = 0,
-            progress = [],
-            fileUUID = uuids[i];
-
-          const file = files[i];
-
-          let { name, type, size } = file;
-
-          this.currentUpload = name;
-
-          const fileName = encrypt(name, key);
-          const fileType = encrypt(type, key);
-          size = encrypt(size, key);
-
-          const fileContents = new Uint8Array(await file.arrayBuffer());
-          const chunksLength = fileContents.length / CHUNK_SIZE_BYTES;
-
-          for (let i = 0; i < chunksLength; i++) {
-            const sequenceNumber = offset / CHUNK_SIZE_BYTES;
-
-            const chunk = fileContents.slice(
-              offset,
-              i + 1 == chunksLength.toFixed(0)
-                ? fileContents.length
-                : offset + CHUNK_SIZE_BYTES
+          if (!subfolderFound) treeItems.push({ name: folderType, children });
+          else {
+            treeItems = treeItems.map((item) =>
+              item.name == folderType
+                ? {
+                    ...item,
+                    children: [...item.children, { uuid, size, name, type }],
+                  }
+                : item
             );
+          }
+        };
 
-            const iv = crypto.getRandomValues(new Uint8Array(12));
-
-            let encryptedChunk = await crypto.subtle.encrypt(
-              { name: 'AES-GCM', iv },
-              importedKey,
-              chunk
+        if (files.length) {
+          const uuids = await new Promise((resolve) => {
+            this.socket?.emit('createFilesUpload', files.length, (uuids) =>
+              resolve(uuids)
             );
+          });
 
-            const percentage =
-              fileContents.length < CHUNK_SIZE_BYTES
-                ? 100
-                : ((sequenceNumber / chunksLength.toFixed(0)) * 100).toFixed(0);
+          for (let i = 0; i < files.length; i++) {
+            let offset = 0,
+              progress = [],
+              fileUUID = uuids[i];
 
-            if (!progress.includes(percentage)) {
-              progress.push(percentage);
-              this.progress = percentage;
+            const file = files[i];
+
+            let { name, type, size } = file;
+
+            this.currentUpload = name;
+
+            const fileName = encrypt(name, key);
+            const fileType = encrypt(type, key);
+            size = encrypt(size, key);
+
+            const fileContents = new Uint8Array(await file.arrayBuffer());
+            const chunksLength = fileContents.length / CHUNK_SIZE;
+
+            for (let i = 0; i < chunksLength; i++) {
+              const sequenceNumber = offset / CHUNK_SIZE;
+
+              const chunk = fileContents.slice(
+                offset,
+                i + 1 == chunksLength.toFixed(0)
+                  ? fileContents.length
+                  : offset + CHUNK_SIZE
+              );
+
+              const iv = crypto.getRandomValues(
+                new Uint8Array(INITIALIZATION_VECTOR)
+              );
+
+              let encryptedChunk = await crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv },
+                importedKey,
+                chunk
+              );
+
+              const percentage =
+                fileContents.length < CHUNK_SIZE
+                  ? 100
+                  : ((sequenceNumber / chunksLength.toFixed(0)) * 100).toFixed(
+                      0
+                    );
+
+              if (!progress.includes(percentage)) {
+                progress.push(percentage);
+                this.progress = percentage;
+              }
+
+              encryptedChunk = appendBuffer(iv, encryptedChunk);
+
+              await new Promise((resolve) => {
+                this.socket?.emit(
+                  'uploadChunk',
+                  { fileUUID, percentage, encryptedChunk },
+                  () => resolve()
+                );
+              });
+
+              chunks.push(encryptedChunk);
+              offset += CHUNK_SIZE;
             }
 
-            encryptedChunk = appendBuffer(iv, encryptedChunk);
-            await new Promise((resolve) => {
-              this.socket.emit(
-                'uploadChunk',
-                { fileUUID, percentage, encryptedChunk },
-                () => resolve()
-              );
+            progress = [];
+            this.progress = 0;
+
+            const duplicatedChunkLengths = chunks
+              .map((chunk) => chunk.length)
+              .filter((chunk) => chunk == MAXIMUM_CHUNK_SIZE).length;
+
+            let chunkLengths = chunks
+              .map((chunk) => chunk.length)
+              .filter((chunk) => chunk != MAXIMUM_CHUNK_SIZE);
+
+            chunkLengths = [
+              `${MAXIMUM_CHUNK_SIZE}-${duplicatedChunkLengths}`,
+            ].concat(chunkLengths);
+
+            encryptedFiles.push({
+              uuid: fileUUID,
+              fileName,
+              fileType,
+              chunks: chunkLengths,
             });
 
-            chunks.push(encryptedChunk);
-            offset += CHUNK_SIZE_BYTES;
+            chunks = [];
+
+            const obj = { name, type, size, uuid: fileUUID };
+
+            if (type == 'text/plain') appendChildren('TXT', obj);
+            else if (type.startsWith('image')) appendChildren('PICS', obj);
+            else if (type.startsWith('video')) appendChildren('VIDEOS', obj);
+            else if (type.startsWith('audio')) appendChildren('SOUNDS', obj);
+            else if (type.startsWith('application/x-msdownload'))
+              appendChildren('EXECUTABLES', obj);
+            else appendChildren('OTHER', obj);
+            children = [];
+            this.setFiles(this.files.slice(1, this.files.length));
           }
 
-          progress = [];
-          this.progress = 0;
-
-          const duplicatedChunkLengths = chunks
-            .map((chunk) => chunk.length)
-            .filter((chunk) => chunk == APPLICATION_CHUNK_SIZE).length;
-          let chunkLengths = chunks
-            .map((chunk) => chunk.length)
-            .filter((chunk) => chunk != APPLICATION_CHUNK_SIZE);
-
-          chunkLengths = [
-            `${APPLICATION_CHUNK_SIZE}-${duplicatedChunkLengths}`,
-          ].concat(chunkLengths);
-
-          encryptedFiles.push({
-            uuid: fileUUID,
-            fileName,
-            fileType,
-            chunks: chunkLengths,
-          });
-          chunks = [];
-
-          const obj = { name, type, size, uuid: fileUUID };
-          if (type == 'text/plain') appendChildrens('TXT', obj);
-          else if (type.startsWith('image')) appendChildrens('PICS', obj);
-          else if (type.startsWith('video')) appendChildrens('VIDEOS', obj);
-          else if (type.startsWith('audio')) appendChildrens('SOUNDS', obj);
-          else if (type.startsWith('application/x-msdownload'))
-            appendChildrens('EXECUTABLES', obj);
-          else appendChildrens('OTHER', obj);
-          children = [];
-          this.setFiles(this.files.slice(1, this.files.length));
+          this.currentUpload = null;
         }
 
-        this.currentUpload = null;
-      }
-
-      const fileDescriptions = treeItems.map(({ name, children }) => ({
-        name: encrypt(name, key),
-        children: children.map((item) => ({
-          ...item,
-          type: encrypt(item.type, key),
-          name: encrypt(item.name, key),
-        })),
-      }));
-
-      //
-
-      const newMessage = await this.handleSendMessage({
-        message,
-        files: encryptedFiles,
-        fileDescriptions,
-      });
-
-      this.message = null;
-      this.sendingMessage = false;
-
-      files = files.map((file, i) => {
-        const { name, type } = file;
-        const { uuid } = encryptedFiles[i];
-        return {
-          src: URL.createObjectURL(new File([file], name, { type })),
-          name,
-          uuid,
-          type,
-          notFetched: true,
-        };
-      });
-
-      const msg = {
-        ...newMessage,
-        files,
-        edited: false,
-        fileDescriptions: treeItems.map((treeItem, id) => ({
-          id,
-          ...treeItem,
-          children: treeItem.children.map((item) => ({
+        const fileDescriptions = treeItems.map(({ name, children }) => ({
+          name: encrypt(name, key),
+          children: children.map((item) => ({
             ...item,
-            size: decrypt(item.size, key),
+            type: encrypt(item.type, key),
+            name: encrypt(item.name, key),
           })),
-        })),
-        content: decrypt(newMessage.content, key),
-      };
+        }));
 
-      await new Promise((resolve) => {
-        this.setMessages([...this.messages, msg]);
-        this.allMessages.push(newMessage);
-        resolve();
-      });
+        const data = {
+          message,
+          files: encryptedFiles,
+          fileDescriptions,
+        };
 
-      const messages = document.querySelector('#messages');
+        const expirationMs = convertToMs(this.selected);
 
-      if (messages)
-        messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
+        if (this.messagesExpirationEnabled) data.expire = this.selected;
 
-      this.focus('messageInput');
+        const newMessage = await this.handleSendMessage(data);
+
+        this.message = null;
+        this.sendingMessage = false;
+
+        files = files.map((file, i) => {
+          const { name, type } = file;
+          const { uuid } = encryptedFiles[i];
+          return {
+            src: URL.createObjectURL(new File([file], name, { type })),
+            name,
+            uuid,
+            type,
+            notFetched: true,
+          };
+        });
+
+        const msg = {
+          ...newMessage,
+          files,
+          edited: false,
+          fileDescriptions: treeItems.map((treeItem, id) => ({
+            id,
+            ...treeItem,
+            children: treeItem.children.map((item) => ({
+              ...item,
+              size: decrypt(item.size, key),
+            })),
+          })),
+          content: decrypt(newMessage.content, key),
+          expiration: expirationMs,
+        };
+
+        await new Promise((resolve) => {
+          this.setMessages([...this.messages, msg]);
+          this.allMessages.push(newMessage);
+          resolve();
+        });
+
+        const messages = document.querySelector('#messages');
+
+        if (messages)
+          messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
+
+        this.focus('messageInput');
+      } catch {
+        this.$notify({
+          text: 'Internal server error',
+          type: 'error',
+        });
+      }
+    },
+    getDateInterval() {
+      this.date = this.$getNormalizedDate(new Date());
+
+      setTimeout(() => this.getDateInterval(), 1000);
     },
     focus(ref) {
       this.$refs[ref].$refs.input.focus();
@@ -623,37 +883,48 @@ export default {
         this.scannerLoading = false;
       } catch (e) {
         const name = e?.name;
-        if (name == 'NotAllowedError')
-          this.$notify({
-            text: 'Camera access permission denied!',
-            type: 'error',
-          });
-        else if (name == 'NotFoundError')
-          this.$notify({
-            text: 'No suitable camera device installed!',
-            type: 'error',
-          });
-        else if (name == 'NotSupportedError')
-          this.$notify({
-            text: 'Page is not served over HTTPS nor localhost!',
-            type: 'error',
-          });
-        else if (name == 'NotReadableError')
-          this.$notify({
-            text: 'Your camera might be already in use!',
-            type: 'error',
-          });
-        else if (name == 'OverconstrainedError')
-          this.$notify({
-            text: 'You requested the front camera although there is none!',
-            type: 'error',
-          });
-        else if (name == 'StreamApiNotSupportedError')
-          this.$notify({
-            text: 'Your browser seems to be lacking features!',
-            type: 'error',
-          });
-        else this.$notify({ text: 'Unknown camera error!', type: 'error' });
+
+        switch (name) {
+          case 'NotAllowedError':
+            this.$notify({
+              text: 'Camera access permission denied!',
+              type: 'error',
+            });
+            break;
+          case 'NotFoundError':
+            this.$notify({
+              text: 'No suitable camera device installed!',
+              type: 'error',
+            });
+            break;
+          case 'NotSupportedError':
+            this.$notify({
+              text: 'Page is not served over HTTPS nor localhost!',
+              type: 'error',
+            });
+            break;
+          case 'NotReadableError':
+            this.$notify({
+              text: 'Your camera might be already in use!',
+              type: 'error',
+            });
+            break;
+          case 'OverconstrainedError':
+            this.$notify({
+              text: 'You requested the front camera although there is none!',
+              type: 'error',
+            });
+            break;
+          case 'StreamApiNotSupportedError':
+            this.$notify({
+              text: 'Your browser seems to be lacking features!',
+              type: 'error',
+            });
+            break;
+          default:
+            this.$notify({ text: 'Unknown camera error!', type: 'error' });
+            break;
+        }
         this.showScanner = false;
       } finally {
         this.scannerLoading = false;
@@ -662,14 +933,17 @@ export default {
     async onDecode(decodedKey) {
       if (this.key == decodedKey) {
         this.$notify({
-          text: 'QR Code key is same as your current key.',
+          text: 'QR Code key is the same as your current key.',
           type: 'info',
         });
         return (this.showScanner = false);
       }
+
       this.showScanner = false;
       this.key = decodedKey;
+
       await this.setQR(decodedKey);
+
       this.keyChange();
       this.$notify({
         text: 'Successfully inserted the key.',
@@ -678,29 +952,32 @@ export default {
     },
     fileDrop({ items, files }) {
       if (!items) files = [...files];
-      else
+      else {
         files = [...items]
           .filter((item) => item.kind == 'file')
           .map((file) => file.getAsFile());
+      }
+
       this.setFiles(files);
     },
     fileDragOver(e) {
       e.preventDefault();
     },
     async keyChange() {
-      const { key } = this;
-      if (!key) return (this.error = 'Key cannot be empty!');
-      if (key.length < 43)
-        return (this.error = 'Key must be 43 length or more!');
+      const { key, setMessages, allMessages, setSendMessageError } = this;
 
-      this.error = null;
+      if (!key) return setSendMessageError('Key cannot be empty!');
+      if (key.length < 43)
+        return setSendMessageError('Key must be 43 length or more!');
+
+      setSendMessageError(null);
 
       localStorage.setItem('key', key);
 
       let tempMessages = [];
 
       await new Promise(async (resolve) => {
-        for (const message of this.allMessages) {
+        for (const message of allMessages) {
           let { content, fileDescriptions } = message;
           content = decrypt(content, key);
 
@@ -717,44 +994,84 @@ export default {
                 })),
               })
             );
+
             const obj = { ...message, content, files: [], fileDescriptions };
             tempMessages.push(obj);
           }
         }
-        this.setMessages(tempMessages);
-        tempMessages = [];
+
+        setMessages(tempMessages);
         resolve();
       });
 
-      const messages = document.querySelector('#messages');
-      if (messages)
-        messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
-    },
-    changeCheckbox() {
-      localStorage.setItem('keyFieldDisabled', this.keyFieldDisabled);
+      tempMessages = [];
+
+      await scrollToBottom();
     },
     async setQR(data) {
       this.qrCode = null;
       const qr = await qrcode.toDataURL(data, { margin: 2, width: 148 });
       this.qrCode = qr;
     },
+    async pasteKeyFromClipboard() {
+      try {
+        const text = await navigator.clipboard.readText();
+
+        await importKey(text);
+
+        if (this.key == text) {
+          return this.$notify({
+            text: 'Pasted key is the same as your current key.',
+            type: 'info',
+          });
+        }
+
+        this.key = text;
+
+        this.keyChange();
+        this.$notify({
+          text: 'Successfully inserted the key.',
+          type: 'success',
+        });
+      } catch (e) {
+        this.$notify({
+          type: 'error',
+          text: e?.message.includes('JWK')
+            ? 'Key is invalid!'
+            : `Pasting failed: ${e?.message ? e.message : 'Unknown error'}`,
+        });
+      }
+    },
     async copyToClipboard() {
       await navigator.clipboard.writeText(this.key);
+
       this.$notify({
         text: 'Copied your key to the clipboard.',
         type: 'success',
       });
     },
     async logout() {
+      this.loggingOut = true;
       await this.handleLogout();
+      this.loggingOut = false;
     },
     ...mapActions([
+      'handleExportChat',
       'handleGetMessages',
       'handleSendMessage',
       'handleLogout',
       'logOut',
     ]),
     ...mapMutations([
+      'setSelectedTime',
+      'setSendMessageError',
+      'setNukeKeyDialogOpen',
+      'setNukeDialogOpen',
+      'setAllowRequestMessages',
+      'setLoadingNewMessages',
+      'updateMessage',
+      'setObserver',
+      'setCurrentPage',
       'setFiles',
       'setTempDecryptedFiles',
       'setMessages',
@@ -811,6 +1128,8 @@ export default {
   background-image: linear-gradient(to left, #303030, #202020);
   border-radius: 10px;
   font-weight: bold;
+  cursor: default;
+  user-select: none;
   width: 270px;
   text-align: center;
   max-width: 100%;
@@ -818,7 +1137,6 @@ export default {
 
 .paste__clipboard__btn,
 .copy__key__btn,
-.generate__key__btn,
 .scan__qr__btn {
   max-width: 100%;
 }
@@ -852,29 +1170,22 @@ export default {
   }
 }
 
-@media screen and (max-width: 445px) {
-  .paste__clipboard__btn,
-  .generate__key__btn {
-    width: 100%;
-  }
-  .generate__key__btn {
-    margin: 12px 0 0 0 !important;
-  }
-}
-
 @media screen and (max-width: 340px) {
   #outer__files__input {
     display: flex;
   }
+
   .send_message_form,
   #files__text {
     display: block !important;
   }
+
   #files__text {
     margin: 12px 0 0 5px;
     font-size: 14px;
     font-weight: bold;
   }
+
   #message__input {
     margin: 20px 0 !important;
   }
@@ -884,28 +1195,58 @@ export default {
     width: 100% !important;
     margin-left: 0 !important;
   }
-}
 
-@media screen and (max-width: 265px) {
   .paste__clipboard__btn,
+  .encryption__key__visibility,
   .copy__key__btn,
-  .generate__key__btn,
-  .scan__qr__btn {
-    font-size: 5vw;
-  }
-  .generate__key__btn {
-    font-size: 4.5vw;
-  }
   .scan__qr__btn {
     font-size: 4vw;
   }
-  .copy__key__btn {
-    margin-top: 20px;
+
+  .copy__key__btn,
+  .paste__clipboard__btn,
+  .encryption__key__visibility {
     margin-left: 0 !important;
     width: 100% !important;
   }
-  .key__flex {
-    display: block !important;
+}
+
+.export-messages-icon {
+  margin: -2px 10px 0 -2px !important;
+}
+
+.hide-show-icon {
+  margin: -2px 8px 0 -2px !important;
+}
+
+.paste-content-icon {
+  margin-left: -2px;
+}
+
+.key-options {
+  gap: 10px;
+}
+
+.expire__date__select {
+  user-select: none;
+
+  &::v-deep(.v-input__control) {
+    width: 120px;
   }
+
+  &::v-deep(input) {
+    cursor: pointer !important;
+  }
+}
+
+.v-input--checkbox {
+  &::v-deep(.v-input__control) {
+    flex-grow: initial;
+    width: initial;
+  }
+}
+
+.nuke-btn {
+  width: 100%;
 }
 </style>

@@ -1,81 +1,65 @@
 <template>
-  <div>
-    <div v-if="loading" class="loader d-flex flex-column">
-      <h3>Loading...</h3>
-      <v-progress-circular
-        class="mt-8"
-        size="70"
-        width="5"
-        indeterminate
-      ></v-progress-circular>
+  <form v-if="!user" class="mx-auto auth-form px-5" @submit.prevent="register">
+    <h2 class="mb-5 mt-8">Register</h2>
+    <transition-group name="register_errors_transition">
+      <v-alert
+        v-for="error of errors"
+        :key="error"
+        class="alert_error mb-5"
+        type="error"
+        color="red"
+      >
+        {{ error }}
+      </v-alert>
+    </transition-group>
+    <v-text-field
+      v-model="username"
+      label="Username"
+      solo
+      placeholder="Type In Your Username"
+    ></v-text-field>
+    <v-text-field
+      v-model="password"
+      label="Password"
+      solo
+      type="password"
+      placeholder="Type In Your Password"
+    ></v-text-field>
+    <v-text-field
+      v-model="confirmPassword"
+      label="Confirm Password"
+      type="password"
+      hide-details
+      solo
+      placeholder="Confirm Your Password"
+    ></v-text-field>
+    <hcaptcha
+      class="mt-5 mb-3"
+      :sitekey="sitekey"
+      @verify="verifyCaptcha"
+      @reset="token = null"
+    ></hcaptcha>
+    <div class="d-flex">
+      <v-btn rounded type="submit" :loading="registering">Register</v-btn>
+      <router-link
+        class="ml-auto text-decoration-none"
+        :to="registering ? '' : '/login'"
+      >
+        <v-btn rounded>Back To Login</v-btn>
+      </router-link>
     </div>
-    <form
-      v-else-if="!user"
-      class="mx-auto auth-form px-5"
-      @submit.prevent="register"
-    >
-      <h2 class="mb-5 mt-8">Register</h2>
-      <transition-group name="register_errors_transition">
-        <v-alert
-          v-for="error of errors"
-          :key="error"
-          class="alert_error mb-5"
-          type="error"
-          color="red"
-        >
-          {{ error }}
-        </v-alert>
-      </transition-group>
-      <v-text-field
-        v-model="username"
-        label="Username"
-        solo
-        placeholder="Type In Your Username"
-      ></v-text-field>
-      <v-text-field
-        v-model="password"
-        label="Password"
-        solo
-        type="password"
-        placeholder="Type In Your Password"
-      ></v-text-field>
-      <v-text-field
-        v-model="confirmPassword"
-        label="Confirm Password"
-        type="password"
-        hide-details
-        solo
-        placeholder="Confirm Your Password"
-      ></v-text-field>
-      <hcaptcha
-        class="mt-5 mb-3"
-        :sitekey="sitekey"
-        @verify="verifyCaptcha"
-        @reset="token = null"
-      ></hcaptcha>
-      <div class="d-flex">
-        <v-btn rounded type="submit" :loading="registering">Register</v-btn>
-        <router-link
-          class="ml-auto text-decoration-none"
-          :to="registering ? '' : '/login'"
-        >
-          <v-btn rounded>Back To Log In</v-btn>
-        </router-link>
-      </div>
-    </form>
-  </div>
+  </form>
 </template>
 
 <script>
 import { mapActions, mapMutations, mapState } from 'vuex';
-import router from '../plugins/router';
 import hcaptcha from '@hcaptcha/vue-hcaptcha';
+import { waitForCaptcha } from '@/utils';
 
 export default {
   name: 'Register',
   components: { hcaptcha },
   data: () => ({
-    sitekey: process.env.VUE_APP_SITE_KEY,
     username: null,
     password: null,
     confirmPassword: null,
@@ -84,11 +68,14 @@ export default {
     registering: false,
     loadingCaptcha: true,
   }),
-  computed: mapState(['user', 'loading']),
+  computed: mapState(['user', 'loading', 'sitekey']),
   async created() {
-    this.setNewUser(null);
-    if (this.user) return router.push('/');
-    this.setLoading(false);
+    await waitForCaptcha();
+
+    const { setNewUser, setLoading } = this;
+
+    setNewUser(null);
+    setLoading(false);
   },
   methods: {
     async register() {

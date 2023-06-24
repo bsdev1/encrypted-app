@@ -6,7 +6,7 @@
     <div :class="files.length >= 12 ? 'files__overflow' : 'files'">
       <div v-for="({ name, size }, i) of files" :key="i" class="d-flex">
         <v-chip class="mt-2" color="deep-purple accent-4" dark label small>
-          {{ name }} ({{ filesize(size) }})
+          {{ name }} ({{ $filesize(size) }})
         </v-chip>
         <div class="mt-2 ml-2" @click="removeFile(i)">
           <mdicon width="20" height="20" name="close" />
@@ -15,7 +15,7 @@
     </div>
     <div v-if="files.length" class="text-caption grey--text mt-3">
       {{ files.length }} {{ files.length == 1 ? 'File' : 'Files' }} ({{
-        filesize(totalSize)
+        $filesize(totalSize)
       }}
       in total)
     </div>
@@ -23,7 +23,6 @@
 </template>
 
 <script>
-import filesize from 'filesize';
 import { mapMutations, mapState } from 'vuex';
 
 export default {
@@ -35,7 +34,6 @@ export default {
     },
   },
   methods: {
-    filesize,
     removeFile(i) {
       this.setFiles(this.files.filter((_, index) => index != i));
     },

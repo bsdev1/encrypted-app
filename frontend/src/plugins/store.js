@@ -11,13 +11,22 @@ const store = new Vuex.Store({
     user: null,
     newUser: null,
     socket: null,
-    path: null,
-    pathFrom: null,
     currentMessage: null,
     currentFetchedFile: null,
-    currentMultiple: null,
-    currentEditedMessage: null,
+    currentEditedMessageId: null,
+    currentPage: null,
+    globalError: null,
+    sendMessageError: null,
     loading: false,
+    messageUpdate: false,
+    loadingNewMessages: false,
+    allowRequestMessages: true,
+    nukeDialogOpen: false,
+    nukeKeyDialogOpen: false,
+    allowApiRequest: true,
+    selectedTime: localStorage.getItem('selectedExpirationTime') ?? '3h',
+    currentParentDownloadPercent: 0,
+    sitekey: process.env.VUE_APP_SITE_KEY,
     files: [],
     tempDecryptedFiles: [],
     messages: [],
@@ -39,9 +48,6 @@ const store = new Vuex.Store({
     },
     setSocket(state, socket) {
       state.socket = socket;
-    },
-    setPath(state, path) {
-      state.path = path;
     },
     setFiles(state, files) {
       state.files = files;
@@ -67,20 +73,47 @@ const store = new Vuex.Store({
     setCurrentDownloadPercentage(state, percentage) {
       state.currentDownload.percentage = percentage;
     },
-    setCurrentMultiple(state, currentMultiple) {
-      state.currentMultiple = currentMultiple;
-    },
     setLoading(state, loading) {
       state.loading = loading;
     },
-    setPathFrom(state, pathFrom) {
-      state.pathFrom = pathFrom;
-    },
-    setCurrentEditedMessage(state, currentEditedMessage) {
-      state.currentEditedMessage = currentEditedMessage;
+    setCurrentEditedMessageId(state, id) {
+      state.currentEditedMessageId = id;
     },
     setPrivateKey(state, privateKey) {
       state.privateKey = privateKey;
+    },
+    setGlobalError(state, globalError) {
+      state.globalError = globalError;
+    },
+    setCurrentPage(state, currentPage) {
+      state.currentPage = currentPage;
+    },
+    updateMessage(state) {
+      state.messageUpdate = !state.messageUpdate;
+    },
+    setLoadingNewMessages(state, loadingNewMessages) {
+      state.loadingNewMessages = loadingNewMessages;
+    },
+    setCurrentParentDownloadPercent(state, percent) {
+      state.currentParentDownloadPercent = percent;
+    },
+    setAllowRequestMessages(state, allowRequestMessages) {
+      state.allowRequestMessages = allowRequestMessages;
+    },
+    setAllowApiRequest(state, allowApiRequest) {
+      state.allowApiRequest = allowApiRequest;
+    },
+    setNukeDialogOpen(state, nukeDialogOpen) {
+      state.nukeDialogOpen = nukeDialogOpen;
+    },
+    setNukeKeyDialogOpen(state, nukeKeyDialogOpen) {
+      state.nukeKeyDialogOpen = nukeKeyDialogOpen;
+    },
+    setSendMessageError(state, sendMessageError) {
+      state.sendMessageError = sendMessageError;
+    },
+    setSelectedTime(state, selectedTime) {
+      state.selectedTime = selectedTime;
     },
   },
   actions: {
@@ -94,12 +127,19 @@ const store = new Vuex.Store({
       commit('setUser', user);
 
       socket.on('connect', async () => {
-        console.log('Connection established.');
+        socket.emit('join', () => {
+          console.log('Connection established.');
+        });
       });
 
       socket.on('disconnect', () => {
         console.log('disconnected');
-        socket.connect();
+
+        if (this.user) socket.connect();
+      });
+
+      socket.io.on('reconnect_attempt', (attempt) => {
+        console.log(attempt);
       });
 
       socket.on('connect_error', (err) => {
@@ -108,32 +148,35 @@ const store = new Vuex.Store({
 
       socket.connect();
     },
-    async getDashboard({ state, commit, dispatch }) {
+    async handleNukeCurrentKeyMessages() {},
+    async handleNukeAllMessages({ state, dispatch, commit }) {
       const {
-        data: { user, success },
-      } = await request.get('/');
+        data: { success },
+      } = await request.delete('/messages/nuke');
 
-      if (
-        success == false &&
-        state.path != 'Login' &&
-        state.path != 'Register'
-      ) {
-        router.push('/login');
-        commit('setSocket', null);
-        return commit('setUser', null);
-      }
+      if (success == false) return dispatch('logOut');
 
-      if (user && !state.user) {
-        dispatch('initSocket', user);
-        if (state.path != 'Dashboard') return router.push('/');
-      }
+      state.socket.emit('nukeAllMessages', () => {
+        Vue.notify({
+          text: 'Successfully nuked all messages.',
+          type: 'success',
+        });
+
+        commit('setMessages', []);
+        commit('setNukeDialogOpen', false);
+      });
     },
-    async handleLogin({ state, dispatch }, { username, password, token }) {
+    async handleLogin(
+      { state, commit, dispatch },
+      { username, password, token }
+    ) {
       const {
         data: { errorMessage, user },
       } = await request.post('/login', { username, password, token });
 
       if (errorMessage) return { errorMessage };
+
+      commit('setAllowApiRequest', false);
 
       if (!state.user) {
         await dispatch('initSocket', user);
@@ -148,10 +191,16 @@ const store = new Vuex.Store({
     },
     logOut({ state, commit }) {
       if (!state.user) return router.push('/login');
+
       commit('setUser', null);
+      commit('setCurrentFetchedFile', null);
+
       state.socket.disconnect();
       commit('setSocket', null);
+
       router.push('/login');
+
+      return {};
     },
     async handleRegister({ commit }, { username, password, token }) {
       const {
@@ -161,30 +210,65 @@ const store = new Vuex.Store({
         password,
         token,
       });
+
       if (errors) return { errors };
+
       commit('setNewUser', newUser);
       router.push('/login');
+
       return {};
     },
-    async handleGetMessages({ dispatch }) {
+    async handleGetMessages({ commit, dispatch }, page = 1) {
+      commit('setCurrentPage', page);
+
       const {
-        data: { messages, success },
-      } = await request.get('/messages');
+        data: { isLastPagination, messages, messagesCount, success },
+      } = await request.get(`/messages?page=${page}`);
+
       if (success == false) return dispatch('logOut');
-      return messages.map((message) => ({ ...message, files: [] }));
+
+      return {
+        isLastPagination,
+        messagesCount,
+        messages: messages.map((message) => ({ ...message, files: [] })),
+      };
     },
     async handleFetchFiles(
       { state, commit, dispatch },
-      { messageId, importedKey, key }
+      { messageId, importedKey }
     ) {
+      const key = localStorage.getItem('key');
+
+      let percent = 0;
+      let total = 0;
+
+      const message = state.messages.find((message) => message.id == messageId);
+
+      const messageFilesIds = message.files.map((file) => file.uuid);
+
+      const children = message.fileDescriptions
+        .map((fileDescription) => fileDescription.children)
+        .flat()
+        .filter((child) => !messageFilesIds.includes(child.uuid));
+
+      commit('setCurrentFetchedFile', children[0].uuid);
+
       let {
         data: { files, success },
       } = await request.get(`/getFiles/${messageId}`);
+
       if (success == false) return dispatch('logOut');
 
-      if (!files.length) return [];
+      if (!files.length) {
+        Vue.notify({
+          text: 'File(s) not found!',
+          type: 'error',
+        });
 
-      files = files.filter((file) => file.uuid != state.currentFetchedFile);
+        return [];
+      }
+
+      files = files.filter((file) => !messageFilesIds.includes(file.uuid));
 
       commit('setCurrentMessage', messageId);
 
@@ -209,20 +293,46 @@ const store = new Vuex.Store({
               importedKey,
               encrypted
             );
+
             decryptedChunks.push(decrypted);
             state.socket.emit('done', uuid);
+
             if (!finished) {
               if (!percentages.includes(percentage)) {
                 percentages.push(percentage);
                 if (state.currentDownload.messageId != messageId)
                   commit('setCurrentDownloadMessage', messageId);
+
+                if (percentage > 0) {
+                  total += percentage - percent;
+
+                  const totalPercent = (
+                    (total / (100 * files.length)) *
+                    100
+                  ).toFixed();
+
+                  commit('setCurrentParentDownloadPercent', totalPercent);
+                }
+
                 commit('setCurrentDownloadPercentage', percentage);
+
+                percent = percentage;
               }
-              if (state.currentMultiple != uuid)
-                commit('setCurrentMultiple', uuid);
+
+              if (state.currentFetchedFile != uuid)
+                commit('setCurrentFetchedFile', uuid);
 
               return;
             }
+
+            total += 100 - percent;
+
+            const totalPercent = (
+              (total / (100 * files.length)) *
+              100
+            ).toFixed();
+
+            commit('setCurrentParentDownloadPercent', totalPercent);
 
             percentages = [];
 
@@ -231,6 +341,7 @@ const store = new Vuex.Store({
             const file = new File([concatArrayBuffers(decryptedChunks)], name, {
               type,
             });
+
             const src = URL.createObjectURL(file);
 
             commit('setTempDecryptedFiles', [
@@ -249,10 +360,17 @@ const store = new Vuex.Store({
 
         for (const { uuid } of files) {
           await new Promise((secondResolve) => {
-            state.socket.emit('getChunks', uuid, (error) => {
-              if (error == 404)
+            state.socket.emit('getChunks', uuid, async (error) => {
+              if (error == 404) {
+                commit('setFetchingFiles', false);
+
+                dispatch('handleFileNotFound', { messageId, uuid });
+
                 files = files.filter((file) => file.uuid != uuid);
+              }
+
               if (files.length) return secondResolve();
+
               resolve();
               secondResolve();
             });
@@ -260,15 +378,19 @@ const store = new Vuex.Store({
         }
       });
 
+      commit('setCurrentFetchedFile', null);
+
       state.socket.off('chunk');
+
       return state.tempDecryptedFiles;
     },
     async handleFetchFile(
-      { state, commit },
-      { messageId, uuid, importedKey, key }
+      { state, commit, dispatch },
+      { messageId, uuid, importedKey }
     ) {
+      const key = localStorage.getItem('key');
+
       commit('setCurrentMessage', messageId);
-      commit('setCurrentFetchedFile', uuid);
 
       let percentages = [],
         decryptedChunks = [];
@@ -316,6 +438,7 @@ const store = new Vuex.Store({
               ...state.tempDecryptedFiles,
               { uuid, src, name, type, fileSize: file.size },
             ]);
+
             commit('setCurrentDownloadPercentage', 0);
 
             percentages = [];
@@ -327,24 +450,174 @@ const store = new Vuex.Store({
 
         state.socket.emit('getChunks', uuid, (error) => {
           if (error == 404) {
+            dispatch('handleFileNotFound', { messageId, uuid });
+
             commit('setCurrentMessage', null);
             commit('setCurrentFetchedFile', null);
+
             return resolve();
           }
         });
       });
 
+      commit('setCurrentFetchedFile', null);
+
       state.socket.off('chunk');
       return state.tempDecryptedFiles;
     },
-    async handleSendMessage({ state }, { message, files, fileDescriptions }) {
+    handleFileNotFound({ state }, { messageId, uuid }) {
+      const message = state.messages.find((message) => message.id == messageId);
+
+      const children = message.fileDescriptions
+        .map((fileDescription) => fileDescription.children)
+        .flat();
+
+      const childFile = children.find((child) => child.uuid == uuid);
+
+      Vue.set(childFile, 'notFound', true);
+
+      Vue.notify({
+        text: 'File(s) not found!',
+        type: 'error',
+      });
+    },
+    async handleExportChat({ dispatch }, key) {
+      const {
+        data: { messages, success },
+      } = await request.get('/messages?page=all');
+
+      if (success == false) return dispatch('logOut');
+
+      let html = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="utf-8" />
+          <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+          <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+          <title>Exported Messages</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+
+            body {
+              color: #FFF;
+              background-color: #151515;
+              font-family: Arial;
+            }
+
+            h2 {
+              text-align: center;
+              margin: 20px 0;
+            }
+
+            #messages {
+              padding: 15px;
+              overflow-y: auto;
+              max-height: 90vh;
+              width: 80vw;
+              margin: auto;
+            }
+
+            .message {
+              background-color: #252525;
+              padding: 12px;
+              border-radius: 5px;
+              margin-bottom: 10px;
+            }
+
+            .content {
+              margin-top: 2px;
+              font-size: 15px;
+            }
+
+            a {
+              color: #2196f3;
+            }
+          </style>
+        </head>
+        <body>
+          <h2 id="totalMessages"></h2>
+          <div id="messages">
+      `;
+
+      for (let { content, createdAt } of messages) {
+        content = decrypt(content, key);
+
+        if (content) {
+          const message = `<div class="message">
+            <div class="date">${createdAt}</div>
+            <div class="content">${Vue.prototype.$sanitizeHTML(
+              Vue.prototype.$anchors({
+                input: content,
+                options: { attributes: { target: '_blank' } },
+              })
+            )}</div>
+          </div>`;
+
+          html += message;
+        }
+      }
+
+      html += `</div>
+          <script>
+            const getNormalizedDate = (date) => {
+              const dateObject = new Date(date);
+            
+              const fullDate = new Intl.DateTimeFormat(undefined, {
+                dateStyle: 'full',
+              }).format(dateObject);
+            
+              const dateHMS = new Intl.DateTimeFormat(undefined, {
+                hour: 'numeric',
+                minute: 'numeric',
+                second: 'numeric',
+                hour12: true,
+              }).format(dateObject);
+            
+              return dateHMS + ', ' + fullDate;
+            };
+
+            messages.scrollTo({ top: messages.scrollHeight, behavior: "smooth" });
+            totalMessages.innerText = 'Total Messages (${
+              document.querySelectorAll('.message').length
+            })';
+
+            const dates = document.querySelectorAll('.date');
+
+            for(const date of dates) {
+              date.innerText = getNormalizedDate(date.innerText);
+            }
+          </script>
+        </body>
+      </html>`;
+
+      const result = new Blob([html], { type: 'text/html' });
+
+      const blobUrl = URL.createObjectURL(result);
+
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = 'messages.html';
+      document.body.append(link);
+      link.click();
+      link.remove();
+    },
+    async handleSendMessage(
+      { state },
+      { message, files, fileDescriptions, expire }
+    ) {
       const newMessage = await new Promise(async (resolve) => {
         state.socket.emit(
           'newMessage',
-          { message, edited: false, files, fileDescriptions },
+          { message, edited: false, files, fileDescriptions, expire },
           (newMessage) => resolve(newMessage)
         );
       });
+
       return newMessage;
     },
     async handleEditMessage({ dispatch }, { id, editMessageContent }) {
@@ -355,7 +628,9 @@ const store = new Vuex.Store({
       if (success == false) return dispatch('logOut');
       return { error };
     },
-    async handleRemoveMessage({ dispatch }, id) {
+    async handleRemoveMessage({ commit, dispatch }, id) {
+      commit('setSendMessageError', null);
+
       const {
         data: { error, success },
       } = await request.delete(`/removeMessage/${id}`);

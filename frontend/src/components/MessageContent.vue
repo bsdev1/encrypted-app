@@ -1,31 +1,53 @@
+<!-- eslint-disable vue/no-v-html -->
 <template>
-  <div v-if="currentEditedMessage == id" class="mt-3">
-    <v-slide-y-transition>
-      <v-alert v-if="editMessageError" type="error" color="red" dense>
-        {{ editMessageError }}
-      </v-alert>
-    </v-slide-y-transition>
-    <form class="d-flex" @submit.prevent="finishEditMessage(id)">
-      <v-text-field
-        v-model="editMessageContent"
-        height="40"
-        label="Edit Message"
-        solo
-        placeholder="Type In Your Edit Message"
-        hide-details
-        dense
-      ></v-text-field>
-      <v-btn
-        type="submit"
-        :loading="applyingChanges"
-        class="finish__edit__btn ml-4"
-      >
-        <mdicon name="check" />
-      </v-btn>
-    </form>
-  </div>
-  <div v-else class="message__content">
-    {{ messageContent }}
+  <div class="message__content pr-7">
+    <div>
+      by
+      <b>{{ username }}</b>
+      -
+      {{ $getNormalizedDate(createdAt) }}
+      <div v-if="edited" class="text-caption grey--text ml-2 d-inline pb-1">
+        (edited)
+      </div>
+    </div>
+    <div v-if="currentEditedMessageId == id" class="mt-3">
+      <v-slide-y-transition>
+        <v-alert v-if="editMessageError" type="error" color="red" dense>
+          {{ editMessageError }}
+        </v-alert>
+      </v-slide-y-transition>
+      <form class="d-flex" @submit.prevent="finishEditMessage(id)">
+        <v-text-field
+          v-model="editMessageContent"
+          height="40"
+          label="Edit Message"
+          solo
+          placeholder="Type In Your Edit Message"
+          hide-details
+          dense
+        ></v-text-field>
+        <v-btn
+          type="submit"
+          :loading="applyingChanges"
+          class="finish__edit__btn ml-4"
+        >
+          <mdicon name="check" />
+        </v-btn>
+      </form>
+    </div>
+
+    <div
+      v-else
+      class="message__content"
+      v-html="
+        $sanitizeHTML(
+          $anchors({
+            input: content,
+            options: { attributes: { target: '_blank' } },
+          })
+        )
+      "
+    ></div>
   </div>
 </template>
 
@@ -37,33 +59,45 @@ export default {
   name: 'MessageContent',
   props: {
     id: String,
-    content: String,
+    username: String,
+    createdAt: String,
   },
-  emits: ['change-edit'],
   data() {
     return {
-      messageContent: this.content,
-      editMessageContent: this.content,
+      content: '',
+      editMessageContent: '',
+      edited: false,
       editMessageError: null,
       applyingChanges: false,
     };
   },
-  computed: mapState(['currentEditedMessage', 'messages', 'socket']),
+  computed: mapState(['currentEditedMessageId', 'messages', 'socket']),
+  created() {
+    const { content, edited } = this.messages.find(
+      (message) => message.id == this.id
+    );
+
+    this.editMessageContent = content;
+    this.content = content;
+    this.edited = edited;
+  },
   methods: {
     async finishEditMessage(id) {
       let {
         editMessageContent,
-        messageContent,
-        messages,
         handleEditMessage,
-        setCurrentEditedMessage,
-        setMessages,
+        content,
+        setCurrentEditedMessageId,
+        setSendMessageError,
+        socket,
       } = this;
 
-      if (editMessageContent == messageContent) {
+      setSendMessageError(null);
+
+      if (editMessageContent == content) {
         this.editMessageError = null;
-        setCurrentEditedMessage(null);
-        return (this.messageContent = editMessageContent);
+        setCurrentEditedMessageId(null);
+        return (this.content = editMessageContent);
       }
 
       if (!editMessageContent?.trim())
@@ -72,40 +106,36 @@ export default {
       const encryptKey = localStorage.getItem('key');
 
       this.applyingChanges = true;
+
       const { error } = await handleEditMessage({
         id,
         editMessageContent: encrypt(editMessageContent, encryptKey),
       });
+
       this.applyingChanges = false;
 
       if (error) return (this.editMessageError = error);
 
-      setCurrentEditedMessage(null);
+      setCurrentEditedMessageId(null);
 
-      this.messageContent = editMessageContent;
+      this.content = editMessageContent;
       this.editActive = false;
       this.editMessageError = null;
 
-      setMessages(
-        messages.map((message) =>
-          message.id == id ? { ...message, edited: true } : message
-        )
-      );
-
-      this.$emit('change-edit');
+      this.edited = true;
 
       this.$notify({
         text: 'Successfully edited a message.',
         type: 'success',
       });
 
-      this.socket.emit('editedMessage', {
+      socket.emit('editedMessage', {
         id,
         newContent: encrypt(editMessageContent, encryptKey),
       });
     },
     ...mapActions(['handleEditMessage']),
-    ...mapMutations(['setCurrentEditedMessage', 'setMessages']),
+    ...mapMutations(['setCurrentEditedMessageId', 'setSendMessageError']),
   },
 };
 </script>
