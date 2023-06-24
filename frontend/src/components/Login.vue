@@ -9,8 +9,8 @@
     <v-slide-y-transition>
       <v-alert v-if="newUser" class="mb-5" type="success">
         Hello,
-        <b>{{ newUser }}</b>
-        ! You can log in now.
+        <b>{{ newUser }}!</b>
+        You can log in now.
       </v-alert>
     </v-slide-y-transition>
     <v-text-field

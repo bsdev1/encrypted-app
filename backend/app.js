@@ -323,10 +323,11 @@ io.on('connection', async (socket) => {
         fileDescriptions,
         content: message,
         author: id,
-        expireAt: new Date(Date.now() + convertToMs(expire)),
       };
 
-      if (expire) data.expiration = convertToMs(expire);
+      if (expire) {
+        data.expiration = convertToMs(expire);
+      }
 
       const {
         id: messageId,

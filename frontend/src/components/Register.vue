@@ -83,15 +83,17 @@ export default {
         this;
       if (!username?.trim() || !password?.trim())
         return (this.errors = ['Fill in all fields!']);
+
       if (!token?.trim()) return (this.errors = ['Captcha cannot be empty!']);
+
       if (password != confirmPassword)
         return (this.errors = ['Passwords are not matching!']);
+
       this.registering = true;
       const { errors } = await handleRegister({ username, password, token });
       this.registering = false;
+
       this.errors = errors;
-      localStorage.setItem('keyFieldDisabled', 'true');
-      localStorage.setItem('key', null);
     },
     verifyCaptcha(token) {
       this.token = token;

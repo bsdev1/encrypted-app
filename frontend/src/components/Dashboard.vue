@@ -812,8 +812,6 @@ export default {
           fileDescriptions,
         };
 
-        const expirationMs = convertToMs(this.selected);
-
         if (this.messagesExpirationEnabled) data.expire = this.selected;
 
         const newMessage = await this.handleSendMessage(data);
@@ -846,8 +844,10 @@ export default {
             })),
           })),
           content: decrypt(newMessage.content, key),
-          expiration: expirationMs,
         };
+
+        if (this.messagesExpirationEnabled)
+          msg.expiration = convertToMs(this.selected);
 
         await new Promise((resolve) => {
           this.setMessages([...this.messages, msg]);

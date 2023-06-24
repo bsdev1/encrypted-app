@@ -1,7 +1,7 @@
 <template>
   <div class="message pr-4 py-2 pb-4" :data-id="id">
     <div class="message__flex d-flex">
-      <div class="expiration__progress__wrapper mr-4">
+      <div v-if="interval" class="expiration__progress__wrapper mr-4">
         <div style="position: relative">
           <mdicon name="clock-outline" size="18" />
           <v-progress-circular
@@ -367,7 +367,7 @@ export default {
     ]),
   },
   created() {
-    this.startUpdateExpirationInterval();
+    if (this.expiration) this.startUpdateExpirationInterval();
   },
   methods: {
     startUpdateExpirationInterval() {

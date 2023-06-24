@@ -80,7 +80,6 @@ router.beforeEach(async ({ name: toName }, { name: fromName }, next) => {
       `%c From ${fromName} to ${toName} - local user doesn't exist `,
       'background-color: green'
     );
-    store.commit('setAllowRequestMessages', false);
     return next();
   }
 
