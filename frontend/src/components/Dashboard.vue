@@ -557,18 +557,6 @@ export default {
       topObserver.observe(firstMessage);
     }
 
-    socket?.on('disconnect', () => {
-      setGlobalError(`Disconnected`);
-    });
-
-    socket?.io.on('reconnect_attempt', (attemptNumber) => {
-      setGlobalError(`Reconnection attempt (${attemptNumber})`);
-    });
-
-    socket?.io.on('reconnect', () => {
-      setGlobalError(null);
-    });
-
     addEventListener('offline', () => {
       setGlobalError('You seem to be offline 🤔');
     });

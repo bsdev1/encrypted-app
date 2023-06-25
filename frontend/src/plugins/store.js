@@ -133,6 +133,10 @@ const store = new Vuex.Store({
         });
       });
 
+      socket?.io.on('reconnect', () => {
+        commit('setGlobalError', null);
+      });
+
       socket.on('disconnect', () => {
         console.log('disconnected');
 
@@ -140,7 +144,7 @@ const store = new Vuex.Store({
       });
 
       socket.io.on('reconnect_attempt', (attempt) => {
-        console.log(attempt);
+        commit('setGlobalError', `Reconnection attempt (${attempt})`);
       });
 
       socket.on('connect_error', (err) => {
