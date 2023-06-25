@@ -175,6 +175,8 @@ const store = new Vuex.Store({
         commit('setMessages', []);
         commit('setNukeKeyDialogOpen', false);
       });
+
+      return { messagesIds };
     },
     async handleNukeAllMessages({ state, dispatch, commit }) {
       const {
@@ -192,6 +194,8 @@ const store = new Vuex.Store({
         commit('setMessages', []);
         commit('setNukeDialogOpen', false);
       });
+
+      return {};
     },
     async handleLogin(
       { state, commit, dispatch },

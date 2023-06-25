@@ -230,7 +230,14 @@
         <div v-else>Loading QR...</div>
 
         <ConfirmNukeDialog @nuked-messages="allMessages = []" />
-        <ConfirmNukeKeyDialog />
+        <ConfirmNukeKeyDialog
+          @nuked-messages="
+            (messageIds) =>
+              (allMessages = allMessages.filter(
+                (message) => !messageIds.includes(message.id)
+              ))
+          "
+        />
 
         <v-btn
           v-if="key && messages.length"
@@ -404,10 +411,11 @@ export default {
           }))
           .filter(
             ({ content, fileDescriptions }) =>
-              content != null &&
-              fileDescriptions.filter(
-                (fileDescription) => fileDescription.name != null
-              ).length
+              content ||
+              (content == '' &&
+                fileDescriptions.filter(
+                  (fileDescription) => fileDescription.name != null
+                ).length)
           )
       );
 

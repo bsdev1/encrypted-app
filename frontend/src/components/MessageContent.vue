@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <div class="message__content pr-7" :class="{ 'my-auto': !content }">
+  <div class="message__content pr-7" :class="{ 'mt-3': !content }">
     <div>
       by
       <b>{{ username }}</b>

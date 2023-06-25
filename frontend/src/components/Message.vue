@@ -1,10 +1,10 @@
 <template>
   <div class="message pr-4 py-2 pb-4" :data-id="id">
-    <div class="message__flex d-flex">
+    <div class="message__flex d-flex" :class="{ 'mb-3': !content }">
       <div
         v-if="interval"
         class="expiration__progress__wrapper mr-4"
-        :class="{ 'mt-2': !content }"
+        :style="{ 'margin-top': !content && '11px' }"
       >
         <div style="position: relative">
           <mdicon name="clock-outline" size="18" />

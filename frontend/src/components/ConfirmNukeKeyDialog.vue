@@ -34,6 +34,7 @@ import { mapActions, mapMutations, mapState } from 'vuex';
 
 export default defineComponent({
   name: 'ConfirmNukeDialog',
+  emits: ['nuked-messages'],
   data: () => ({
     nukingMessages: false,
   }),
@@ -54,9 +55,14 @@ export default defineComponent({
 
       this.nukingMessages = true;
 
-      await handleNukeCurrentKeyMessages();
+      const { messagesIds, unauthorized } =
+        await handleNukeCurrentKeyMessages();
 
       this.nukingMessages = false;
+
+      if (unauthorized) return;
+
+      this.$emit('nuked-messages', messagesIds);
     },
     ...mapMutations(['setNukeKeyDialogOpen']),
     ...mapActions(['handleNukeCurrentKeyMessages']),
