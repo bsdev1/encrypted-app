@@ -270,6 +270,9 @@ import ConfirmNukeKeyDialog from '@/components/ConfirmNukeKeyDialog.vue';
 
 export default {
   name: 'Dashboard',
+  metaInfo: {
+    title: 'LockGuard – Dashboard',
+  },
   components: { Messages, Files, ConfirmNukeDialog, ConfirmNukeKeyDialog },
   data: () => ({
     date: null,

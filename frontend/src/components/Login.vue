@@ -60,6 +60,9 @@ export default {
     token: null,
     loggingIn: false,
   }),
+  metaInfo: {
+    title: 'LockGuard – Login',
+  },
   computed: mapState(['newUser', 'user', 'loading', 'sitekey']),
   async created() {
     const { setLoading } = this;

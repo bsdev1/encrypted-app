@@ -59,6 +59,9 @@ import { waitForCaptcha } from '@/utils';
 export default {
   name: 'Register',
   components: { hcaptcha },
+  metaInfo: {
+    title: 'LockGuard – Register',
+  },
   data: () => ({
     username: null,
     password: null,

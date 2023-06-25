@@ -32,8 +32,6 @@ const {
   EXPIRE_TIMES,
   convertToMs,
 } = require('../shared/constants');
-// const checkDiskSpace = require('check-disk-space').default;
-// const os = require('os');
 
 passportAuth(passport);
 
@@ -151,18 +149,6 @@ io.on('connection', async (socket) => {
   });
 
   socket.on('createFilesUpload', async (filesLength, cb) => {
-    // checkDiskSpace(os.platform() == 'win32' ? 'C:/' : '/root').then(
-    //   (diskSpace) => {
-    //     console.log(diskSpace);
-    //     // {
-    //     //     diskPath: '/',
-    //     //     free: 12345678,
-    //     //     size: 98756432
-    //     // }
-    //     // Note: `free` and `size` are in bytes
-    //   }
-    // );
-
     const author = socket.request.user.id;
 
     const uploads = Array.from({ length: filesLength }, () => ({
