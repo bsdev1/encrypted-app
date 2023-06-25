@@ -631,6 +631,7 @@ export default {
     },
     updateExpirationEnabled() {
       localStorage.setItem('expirationEnabled', this.messagesExpirationEnabled);
+      localStorage.setItem('selectedExpirationTime', this.selected);
     },
     async exportChat() {
       const { key, handleExportChat } = this;

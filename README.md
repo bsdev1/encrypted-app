@@ -1,12 +1,12 @@
 # LockGuard App - Share Encrypted Messages and Files in Real-Time! 📨🔒📂
 
-SecureShare is a user-friendly app that lets you securely share encrypted messages and files in real-time. Built with Socket.IO, Vue, and vanilla JavaScript, it prioritizes your privacy and keeps your sensitive information protected. Say goodbye to intercepted conversations and data breaches. With SecureShare, your privacy is guaranteed.
+LockGuard is a user-friendly app that lets you securely share encrypted messages and files in real-time. Built with Socket.IO, Vue, and vanilla JavaScript, it prioritizes your privacy and keeps your sensitive information protected. Say goodbye to intercepted conversations and data breaches. With LockGuard, your privacy is guaranteed.
 
 ## Features ✨🚀
 
 - **Real-time Communication**: Experience instant and synchronized communication between devices, allowing you to share messages and files effortlessly.
 
-- **End-to-End Encryption (E2EE)**: Your data is shielded with the highest level of security using AES256 encryption. Feel confident that only the intended recipients can access your shared content.
+- **End-to-End Encryption (E2EE)**: Your data is shielded with the highest level of security using AES256 encryption. Feel confident that only you can access your content.
 
 - **Auto Message Destruction**: Enjoy the convenience of setting a self-destruct timer for your messages. After a specified time, your messages automatically vanish, leaving no trace behind.
 
@@ -44,7 +44,7 @@ To launch LockGuard, follow these steps:
    yarn dev
    ```
 
-7. Open your browser and visit [http://localhost:8080](http://localhost:8080) to view the LockGuard application.
+7. Open your browser and visit [http://localhost:8080](http://localhost:8080) to view the application.
 
 ## Deployment 🌐
 
@@ -55,7 +55,7 @@ To deploy LockGuard to your hosting server, follow these steps:
 - Navigate to the **frontend** folder.
 - Update the `VUE_APP_BACKEND` environment variable in the `.env` file to your domain where application will be hosted.
 - Update the `VUE_APP_SITE_KEY` environment variable in the `.env` file to your hCaptcha site key for that domain.
-- Build the LockGuard app by running the following command:
+- Build the app by running the following command:
 
   ```
   yarn build
@@ -66,7 +66,7 @@ To deploy LockGuard to your hosting server, follow these steps:
 - Set the `captchaSecret` environment variable to your hCaptcha secret.
 - Set the `enableRegister` environment variable to `1` or `0`, depending on whether you want to allow users to register.
 - Set the `sessionSecret` environment variable to a randomly generated session secret. This secret is used to sign cookies for secure session management. Make sure to keep this secret confidential.
-- Set the `mongoUrl` environment variable in the `.env` file to the database URL of your MongoDB.
+- Set the `mongoUrl` environment variable to the database URL of your MongoDB.
 - Set the `NODE_ENV` environment variable to `production` to change the application to production mode.
 - Copy the **dist** folder from the **frontend** build.
 - Paste the copied **dist** folder into the **public** folder of the **backend** folder.
@@ -97,6 +97,6 @@ This application, including its source code, is made available under the followi
 
 2. Attribution: When using this application or its source code, you are required to provide proper attribution by mentioning the original author in a visible and appropriate manner.
 
-3. Warranty: This application is provided "as is," without warranty of any kind, express or implied. The author (insert your name or preferred attribution) shall not be liable for any claim, damages, or other liability arising from the use of the application.
+3. Warranty: This application is provided "as is," without warranty of any kind, express or implied. The author shall not be liable for any claim, damages, or other liability arising from the use of the application.
 
 By using this application or its source code, you agree to abide by the above terms and conditions.
