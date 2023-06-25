@@ -1,6 +1,6 @@
 # LockGuard App - Share Encrypted Messages and Files in Real-Time! 📨🔒📂
 
-LockGuard is a user-friendly app that lets you securely share encrypted messages and files in real-time. Built with Socket.IO, Vue, and vanilla JavaScript, it prioritizes your privacy and keeps your sensitive information protected. Say goodbye to intercepted conversations and data breaches. With LockGuard, your privacy is guaranteed.
+LockGuard is a user-friendly app that lets you securely share encrypted messages and files in real-time. Built with Socket.IO, Vue, and vanilla JavaScript, it prioritizes your privacy and keeps your sensitive information protected. Say goodbye to intercepted conversations and data breaches.
 
 ## Features ✨🚀
 
