@@ -407,9 +407,9 @@ export default {
       resolve();
     });
 
-    let messagesElement = await scrollToBottom();
-
     if (loading) setLoading(false);
+
+    let messagesElement = await scrollToBottom();
 
     addEventListener('paste', async (e) => {
       if (e.target.closest('.key__box')) {
@@ -789,10 +789,24 @@ export default {
 
             const obj = { name, type, size, uuid: fileUUID };
 
+            const archiveTypes = [
+              'application/vnd.rar',
+              'application/x-rar-compressed',
+              'application/octet-stream',
+              'application/zip',
+              'application/octet-stream',
+              'application/x-zip-compressed',
+              'multipart/x-zip',
+              'application/x-gzip',
+            ];
+
             if (type == 'text/plain') appendChildren('TXT', obj);
+            else if (type.endsWith('gif')) appendChildren('GIFS', obj);
             else if (type.startsWith('image')) appendChildren('PICS', obj);
-            else if (type.startsWith('video')) appendChildren('VIDEOS', obj);
-            else if (type.startsWith('audio')) appendChildren('SOUNDS', obj);
+            else if (type.startsWith('video')) appendChildren('VIDEO', obj);
+            else if (type.startsWith('audio')) appendChildren('AUDIO', obj);
+            else if (archiveTypes.includes(type))
+              appendChildren('ARCHIVES', obj);
             else if (type.startsWith('application/x-msdownload'))
               appendChildren('EXECUTABLES', obj);
             else appendChildren('OTHER', obj);

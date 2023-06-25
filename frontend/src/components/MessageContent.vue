@@ -73,13 +73,15 @@ export default {
   },
   computed: mapState(['currentEditedMessageId', 'messages', 'socket']),
   created() {
-    const { content, edited } = this.messages.find(
-      (message) => message.id == this.id
-    );
+    const message = this.messages.find((message) => message.id == this.id);
 
-    this.editMessageContent = content;
-    this.content = content;
-    this.edited = edited;
+    if (message) {
+      const { content, edited } = message;
+
+      this.editMessageContent = content;
+      this.content = content;
+      this.edited = edited;
+    }
   },
   methods: {
     async finishEditMessage(id) {

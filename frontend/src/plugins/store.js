@@ -148,7 +148,24 @@ const store = new Vuex.Store({
 
       socket.connect();
     },
-    async handleNukeCurrentKeyMessages() {},
+    async handleNukeCurrentKeyMessages() {
+      const {
+        data: { messages },
+      } = await request.get('/messages?page=all');
+
+      const key = localStorage.getItem('key');
+
+      const decryptedMessages = messages
+        .map((message) => ({
+          ...message,
+          content: decrypt(message.content, key),
+        }))
+        .filter(({ content }) => content);
+
+      const messagesIds = decryptedMessages.map((message) => message.id);
+
+      console.log(messagesIds);
+    },
     async handleNukeAllMessages({ state, dispatch, commit }) {
       const {
         data: { success },
