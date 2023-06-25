@@ -1,4 +1,0 @@
-node_modules
-public/dist
-yarn.lock
-public/usersFiles/*.encrypted

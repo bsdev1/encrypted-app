@@ -1,0 +1,8 @@
+backend/node_modules
+backend/public/dist
+backend/yarn.lock
+backend/public/usersFiles/*.encrypted
+
+frontend/node_modules
+frontend/yarn.lock
+frontend/dist
