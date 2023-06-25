@@ -1,7 +1,7 @@
 const { Schema, model } = require('mongoose');
 
 const messageSchema = new Schema({
-  content: { type: String, required: true },
+  content: { type: String },
   edited: { type: Boolean, default: false },
   filesCount: { type: Number, default: 0 },
   fileDescriptions: Array,

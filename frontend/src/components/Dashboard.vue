@@ -237,7 +237,7 @@
           class="mb-3 nuke-btn"
           @click="() => setNukeKeyDialogOpen(true)"
         >
-          Nuke Messages For That Key
+          Nuke Messages For Current Key
         </v-btn>
         <v-btn
           v-if="allMessages.length"
@@ -343,6 +343,7 @@ export default {
       setSendMessageError,
       setMessages,
       setCurrentPage,
+      setGlobalError,
     } = this;
 
     if (!allowRequestMessages) {
@@ -387,7 +388,7 @@ export default {
         messages
           .map((message) => ({
             ...message,
-            content: decrypt(message.content, key),
+            content: message.content ? decrypt(message.content, key) : '',
             fileDescriptions: message.fileDescriptions.map(
               ({ name, children }, id) => ({
                 id,
@@ -401,7 +402,13 @@ export default {
               })
             ),
           }))
-          .filter(({ content }) => content)
+          .filter(
+            ({ content, fileDescriptions }) =>
+              content != null &&
+              fileDescriptions.filter(
+                (fileDescription) => fileDescription.name != null
+              ).length
+          )
       );
 
       resolve();
@@ -548,6 +555,26 @@ export default {
       topObserver.observe(firstMessage);
     }
 
+    socket?.on('disconnect', () => {
+      setGlobalError(`Disconnected`);
+    });
+
+    socket?.io.on('reconnect_attempt', (attemptNumber) => {
+      setGlobalError(`Reconnection attempt (${attemptNumber})`);
+    });
+
+    socket?.io.on('reconnect', () => {
+      setGlobalError(null);
+    });
+
+    addEventListener('offline', () => {
+      setGlobalError('You seem to be offline 🤔');
+    });
+
+    addEventListener('online', () => {
+      setGlobalError(null);
+    });
+
     socket?.on('newMessage', async (newMessage) => {
       const { key } = this;
 
@@ -645,7 +672,7 @@ export default {
     },
     async sendMessage() {
       let { message, key, files, logOut, setSendMessageError } = this;
-      if (!message?.trim())
+      if (!message?.trim() && !files.length)
         return setSendMessageError('Message cannot be empty!');
 
       if (!key) return setSendMessageError('Key cannot be empty!');
@@ -662,7 +689,7 @@ export default {
 
         if (success == false) return logOut();
 
-        message = encrypt(message, key);
+        message = message ? encrypt(message, key) : null;
 
         const importedKey = await importKey();
 
@@ -999,22 +1026,22 @@ export default {
       await new Promise(async (resolve) => {
         for (const message of allMessages) {
           let { content, fileDescriptions } = message;
-          content = decrypt(content, key);
+          content = content == null ? null : decrypt(content, key);
 
-          if (content) {
-            fileDescriptions = fileDescriptions.map(
-              ({ name, children }, id) => ({
-                id,
-                name: decrypt(name, key),
-                children: children.map((item) => ({
-                  ...item,
-                  size: decrypt(item.size, key),
-                  type: decrypt(item.type, key),
-                  name: decrypt(item.name, key),
-                })),
-              })
-            );
+          fileDescriptions = fileDescriptions
+            .map(({ name, children }, id) => ({
+              id,
+              name: decrypt(name, key),
+              children: children.map((item) => ({
+                ...item,
+                size: decrypt(item.size, key),
+                type: decrypt(item.type, key),
+                name: decrypt(item.name, key),
+              })),
+            }))
+            .filter((fileDescription) => fileDescription.name != null);
 
+          if ((content == null && fileDescriptions.length) || content) {
             const obj = { ...message, content, files: [], fileDescriptions };
             tempMessages.push(obj);
           }
@@ -1083,6 +1110,7 @@ export default {
       'logOut',
     ]),
     ...mapMutations([
+      'setGlobalError',
       'setSelectedTime',
       'setSendMessageError',
       'setNukeKeyDialogOpen',

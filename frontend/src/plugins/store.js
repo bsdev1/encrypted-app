@@ -148,10 +148,12 @@ const store = new Vuex.Store({
 
       socket.connect();
     },
-    async handleNukeCurrentKeyMessages() {
+    async handleNukeCurrentKeyMessages({ state, commit, dispatch }) {
       const {
-        data: { messages },
+        data: { messages, success },
       } = await request.get('/messages?page=all');
+
+      if (success == false) return dispatch('logOut');
 
       const key = localStorage.getItem('key');
 
@@ -164,7 +166,15 @@ const store = new Vuex.Store({
 
       const messagesIds = decryptedMessages.map((message) => message.id);
 
-      console.log(messagesIds);
+      state.socket.emit('nukeAllCurrentKeyMessages', messagesIds, () => {
+        Vue.notify({
+          text: 'Successfully nuked all messages for current key.',
+          type: 'success',
+        });
+
+        commit('setMessages', []);
+        commit('setNukeKeyDialogOpen', false);
+      });
     },
     async handleNukeAllMessages({ state, dispatch, commit }) {
       const {

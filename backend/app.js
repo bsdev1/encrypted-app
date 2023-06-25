@@ -164,6 +164,28 @@ io.on('connection', async (socket) => {
     cb(uuids);
   });
 
+  socket.on('nukeAllCurrentKeyMessages', async (messageIds, cb) => {
+    const author = socket.request.user.id;
+
+    const messages = await Message.find({ author });
+
+    for (const message of messages) {
+      if (messageIds.includes(message.id)) {
+        const file = await File.findOne({ message: message.id });
+
+        if (file) {
+          const path = `./public/usersFiles/${file.uuid}.encrypted`;
+          if (fsDefault.existsSync(path)) await fs.unlink(path);
+          await file.remove();
+        }
+
+        await message.remove();
+      }
+    }
+
+    cb();
+  });
+
   socket.on('getChunks', async (uuid, cb) => {
     if (!fsDefault.existsSync(`./public/usersFiles/${uuid}.encrypted`)) {
       const file = await File.findOne({ uuid }).populate('message', 'id');
@@ -294,7 +316,10 @@ io.on('connection', async (socket) => {
   socket.on(
     'newMessage',
     async ({ message, edited, files, fileDescriptions, expire }, cb) => {
-      if (!message?.trim() || (expire && !EXPIRE_TIMES.includes(expire)))
+      if (
+        (!message?.trim() && !files.length) ||
+        (expire && !EXPIRE_TIMES.includes(expire))
+      )
         return cb();
 
       const { id, username, createdAt: userCreatedAt } = socket.request.user;

@@ -1,7 +1,11 @@
 <template>
   <div class="message pr-4 py-2 pb-4" :data-id="id">
     <div class="message__flex d-flex">
-      <div v-if="interval" class="expiration__progress__wrapper mr-4">
+      <div
+        v-if="interval"
+        class="expiration__progress__wrapper mr-4"
+        :class="{ 'mt-2': !content }"
+      >
         <div style="position: relative">
           <mdicon name="clock-outline" size="18" />
           <v-progress-circular
@@ -28,6 +32,7 @@
 
       <div class="message__options ml-auto d-flex">
         <v-btn
+          v-if="content"
           class="message__btn__copy"
           title="Copy Message"
           small
@@ -36,6 +41,7 @@
           <mdicon name="content-copy" />
         </v-btn>
         <v-btn
+          v-if="content"
           :disabled="applyingChanges"
           class="message__btn__edit ml-2"
           title="Edit Message"

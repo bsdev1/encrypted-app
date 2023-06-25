@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <div class="message__content pr-7">
+  <div class="message__content pr-7" :class="{ 'my-auto': !content }">
     <div>
       by
       <b>{{ username }}</b>
@@ -10,44 +10,46 @@
         (edited)
       </div>
     </div>
-    <div v-if="currentEditedMessageId == id" class="mt-3">
-      <v-slide-y-transition>
-        <v-alert v-if="editMessageError" type="error" color="red" dense>
-          {{ editMessageError }}
-        </v-alert>
-      </v-slide-y-transition>
-      <form class="d-flex" @submit.prevent="finishEditMessage(id)">
-        <v-text-field
-          v-model="editMessageContent"
-          height="40"
-          label="Edit Message"
-          solo
-          placeholder="Type In Your Edit Message"
-          hide-details
-          dense
-        ></v-text-field>
-        <v-btn
-          type="submit"
-          :loading="applyingChanges"
-          class="finish__edit__btn ml-4"
-        >
-          <mdicon name="check" />
-        </v-btn>
-      </form>
-    </div>
+    <template v-if="content">
+      <div v-if="currentEditedMessageId == id" class="mt-3">
+        <v-slide-y-transition>
+          <v-alert v-if="editMessageError" type="error" color="red" dense>
+            {{ editMessageError }}
+          </v-alert>
+        </v-slide-y-transition>
+        <form class="d-flex" @submit.prevent="finishEditMessage(id)">
+          <v-text-field
+            v-model="editMessageContent"
+            height="40"
+            label="Edit Message"
+            solo
+            placeholder="Type In Your Edit Message"
+            hide-details
+            dense
+          ></v-text-field>
+          <v-btn
+            type="submit"
+            :loading="applyingChanges"
+            class="finish__edit__btn ml-4"
+          >
+            <mdicon name="check" />
+          </v-btn>
+        </form>
+      </div>
 
-    <div
-      v-else
-      class="message__content"
-      v-html="
-        $sanitizeHTML(
-          $anchors({
-            input: content,
-            options: { attributes: { target: '_blank' } },
-          })
-        )
-      "
-    ></div>
+      <div
+        v-else
+        class="message__content"
+        v-html="
+          $sanitizeHTML(
+            $anchors({
+              input: content,
+              options: { attributes: { target: '_blank' } },
+            })
+          )
+        "
+      ></div>
+    </template>
   </div>
 </template>
 
