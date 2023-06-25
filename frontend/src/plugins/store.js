@@ -23,6 +23,7 @@ const store = new Vuex.Store({
     allowRequestMessages: true,
     nukeDialogOpen: false,
     nukeKeyDialogOpen: false,
+    allMessages: [],
     allowApiRequest: true,
     selectedTime: localStorage.getItem('selectedExpirationTime') ?? '3h',
     currentParentDownloadPercent: 0,
@@ -79,9 +80,6 @@ const store = new Vuex.Store({
     setCurrentEditedMessageId(state, id) {
       state.currentEditedMessageId = id;
     },
-    setPrivateKey(state, privateKey) {
-      state.privateKey = privateKey;
-    },
     setGlobalError(state, globalError) {
       state.globalError = globalError;
     },
@@ -114,6 +112,9 @@ const store = new Vuex.Store({
     },
     setSelectedTime(state, selectedTime) {
       state.selectedTime = selectedTime;
+    },
+    setAllMessages(state, allMessages) {
+      state.allMessages = allMessages;
     },
   },
   actions: {
@@ -161,8 +162,19 @@ const store = new Vuex.Store({
         .map((message) => ({
           ...message,
           content: decrypt(message.content, key),
+          fileDescriptions: message.fileDescriptions.map((fileDescription) => ({
+            ...fileDescription,
+            name: decrypt(fileDescription.name, key),
+          })),
         }))
-        .filter(({ content }) => content);
+        .filter(
+          ({ content, fileDescriptions }) =>
+            content ||
+            (content == null &&
+              fileDescriptions.filter(
+                (fileDescription) => fileDescription.name != null
+              ).length)
+        );
 
       const messagesIds = decryptedMessages.map((message) => message.id);
 
@@ -175,6 +187,11 @@ const store = new Vuex.Store({
         commit('setMessages', []);
         commit('setNukeKeyDialogOpen', false);
       });
+
+      commit(
+        'setAllMessages',
+        state.allMessages.filter((message) => !messagesIds.includes(message.id))
+      );
 
       return { messagesIds };
     },
@@ -195,7 +212,7 @@ const store = new Vuex.Store({
         commit('setNukeDialogOpen', false);
       });
 
-      return {};
+      commit('setAllMessages', []);
     },
     async handleLogin(
       { state, commit, dispatch },
@@ -398,6 +415,18 @@ const store = new Vuex.Store({
                 dispatch('handleFileNotFound', { messageId, uuid });
 
                 files = files.filter((file) => file.uuid != uuid);
+              } else if (error == 405) {
+                commit(
+                  'setMessages',
+                  state.messages.filter((message) => message.id != messageId)
+                );
+
+                state.socket.emit('removeMessage', messageId);
+
+                Vue.notify({
+                  text: `Message doesn't exist.`,
+                  type: 'info',
+                });
               }
 
               if (files.length) return secondResolve();
@@ -485,6 +514,20 @@ const store = new Vuex.Store({
 
             commit('setCurrentMessage', null);
             commit('setCurrentFetchedFile', null);
+
+            return resolve();
+          } else if (error == 405) {
+            commit(
+              'setMessages',
+              state.messages.filter((message) => message.id != messageId)
+            );
+
+            state.socket.emit('removeMessage', messageId);
+
+            Vue.notify({
+              text: `Message doesn't exist.`,
+              type: 'info',
+            });
 
             return resolve();
           }

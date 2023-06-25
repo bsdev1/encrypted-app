@@ -164,13 +164,13 @@ io.on('connection', async (socket) => {
     cb(uuids);
   });
 
-  socket.on('nukeAllCurrentKeyMessages', async (messageIds, cb) => {
+  socket.on('nukeAllCurrentKeyMessages', async (messagesIds, cb) => {
     const author = socket.request.user.id;
 
     const messages = await Message.find({ author });
 
     for (const message of messages) {
-      if (messageIds.includes(message.id)) {
+      if (messagesIds.includes(message.id)) {
         const file = await File.findOne({ message: message.id });
 
         if (file) {
@@ -183,29 +183,35 @@ io.on('connection', async (socket) => {
       }
     }
 
+    socket.to(author).emit('allCurrentKeyMessagesNuked', messagesIds);
     cb();
   });
 
   socket.on('getChunks', async (uuid, cb) => {
     if (!fsDefault.existsSync(`./public/usersFiles/${uuid}.encrypted`)) {
       const file = await File.findOne({ uuid }).populate('message', 'id');
-      const message = await Message.findById(file.message.id);
 
-      message.fileDescriptions = message.fileDescriptions.map(
-        (fileDescription) => ({
-          ...fileDescription,
-          children: fileDescription.children.map((child) =>
-            child.uuid == uuid ? { ...child, notFound: true } : child
-          ),
-        })
-      );
+      if (file) {
+        const message = await Message.findById(file.message.id);
 
-      message.markModified('fileDescriptions');
-      await message.save();
+        message.fileDescriptions = message.fileDescriptions.map(
+          (fileDescription) => ({
+            ...fileDescription,
+            children: fileDescription.children.map((child) =>
+              child.uuid == uuid ? { ...child, notFound: true } : child
+            ),
+          })
+        );
 
-      await File.deleteOne({ uuid });
+        message.markModified('fileDescriptions');
+        await message.save();
 
-      return cb(404);
+        await File.deleteOne({ uuid });
+
+        return cb(404);
+      } else {
+        return cb(405);
+      }
     }
 
     let encryptedFile = new Uint8Array(

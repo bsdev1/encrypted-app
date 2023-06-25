@@ -229,15 +229,8 @@
         </div>
         <div v-else>Loading QR...</div>
 
-        <ConfirmNukeDialog @nuked-messages="allMessages = []" />
-        <ConfirmNukeKeyDialog
-          @nuked-messages="
-            (messageIds) =>
-              (allMessages = allMessages.filter(
-                (message) => !messageIds.includes(message.id)
-              ))
-          "
-        />
+        <ConfirmNukeDialog />
+        <ConfirmNukeKeyDialog />
 
         <v-btn
           v-if="key && messages.length"
@@ -300,11 +293,11 @@ export default {
     loggingOut: false,
     showScanner: false,
     keyFieldDisabled: localStorage.getItem('keyFieldDisabled') == 'true',
-    allMessages: [],
     progress: 0,
   }),
   computed: {
     ...mapState([
+      'allMessages',
       'selectedTime',
       'sendMessageError',
       'allowRequestMessages',
@@ -351,6 +344,7 @@ export default {
       setMessages,
       setCurrentPage,
       setGlobalError,
+      setAllMessages,
     } = this;
 
     if (!allowRequestMessages) {
@@ -389,7 +383,7 @@ export default {
     this.loadingMessages = false;
 
     await new Promise((resolve) => {
-      this.allMessages = messages;
+      setAllMessages(messages);
 
       setMessages(
         messages
@@ -487,7 +481,7 @@ export default {
         }
 
         const messagesCount = await new Promise((resolve) => {
-          this.allMessages = messages;
+          setAllMessages(messages);
 
           const decryptedMessages = messages
             .map((message) => ({
@@ -586,23 +580,28 @@ export default {
     socket?.on('newMessage', async (newMessage) => {
       const { key } = this;
 
+      let { fileDescriptions, filesCount } = newMessage;
+
+      if (fileDescriptions.length)
+        fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({
+          id,
+          name: decrypt(name, key),
+          children: children.map((item) => ({
+            ...item,
+            size: decrypt(item.size, key),
+            type: decrypt(item.type, key),
+            name: decrypt(item.name, key),
+          })),
+        }));
+
+      const ableToDecrypt = fileDescriptions.filter(
+        (fileDescription) => fileDescription.name != null
+      ).length;
+
       const decryptedContent = decrypt(newMessage.content, key);
 
-      if (decryptedContent && key) {
-        setSendMessageError(null);
-        let { fileDescriptions, filesCount } = newMessage;
-
-        if (fileDescriptions.length)
-          fileDescriptions = fileDescriptions.map(({ name, children }, id) => ({
-            id,
-            name: decrypt(name, key),
-            children: children.map((item) => ({
-              ...item,
-              size: decrypt(item.size, key),
-              type: decrypt(item.type, key),
-              name: decrypt(item.name, key),
-            })),
-          }));
+      if ((newMessage.content == null && ableToDecrypt) || decryptedContent) {
+        if (decryptedContent) setSendMessageError(null);
 
         const message = {
           ...newMessage,
@@ -616,38 +615,28 @@ export default {
 
         setTempDecryptedFiles([]);
 
-        await new Promise((resolve) => {
-          setMessages([...this.messages, message]);
-          this.allMessages.push(newMessage);
-          resolve();
-        });
+        setMessages([...this.messages, message]);
 
-        const lastMessage = [...document.querySelectorAll('.message')].pop();
-        const lastMessageHeight = parseFloat(
-          getComputedStyle(lastMessage).height.split('px')[0]
-        );
+        await this.$nextTick();
 
-        messagesElement = document.querySelector('#messages');
-
-        const { scrollHeight, scrollTop, clientHeight } = messagesElement;
-
-        if (this.allMessages.length > 8)
-          return messagesElement.scrollTo({
-            top: scrollHeight,
-            behavior: 'smooth',
-          });
-
-        if (scrollHeight - (scrollTop + lastMessageHeight) == clientHeight)
-          messagesElement.scrollTo({ top: scrollHeight, behavior: 'smooth' });
-
-        return;
+        await scrollToBottom();
       }
 
-      this.allMessages.push(newMessage);
+      setAllMessages([...this.allMessages, newMessage]);
     });
 
     socket?.on('allMessagesNuked', () => {
+      setAllMessages([]);
       setMessages([]);
+    });
+
+    socket?.on('allCurrentKeyMessagesNuked', (messagesIds) => {
+      setAllMessages(
+        this.allMessages.filter((message) => !messagesIds.includes(message.id))
+      );
+      setMessages(
+        this.messages.filter((message) => !messagesIds.includes(message.id))
+      );
     });
 
     socket?.on('editedMessage', async ({ id, newContent }) => {
@@ -662,6 +651,7 @@ export default {
     });
 
     socket?.on('removeMessage', (id) => {
+      setAllMessages(this.allMessages.filter((message) => message.id != id));
       setMessages(this.messages.filter((message) => message.id != id));
     });
   },
@@ -679,7 +669,15 @@ export default {
       await handleExportChat(key);
     },
     async sendMessage() {
-      let { message, key, files, logOut, setSendMessageError } = this;
+      let {
+        message,
+        key,
+        files,
+        logOut,
+        setSendMessageError,
+        setAllMessages,
+        setMessages,
+      } = this;
       if (!message?.trim() && !files.length)
         return setSendMessageError('Message cannot be empty!');
 
@@ -905,8 +903,8 @@ export default {
           msg.expiration = convertToMs(this.selected);
 
         await new Promise((resolve) => {
-          this.setMessages([...this.messages, msg]);
-          this.allMessages.push(newMessage);
+          setMessages([...this.messages, msg]);
+          setAllMessages([...this.allMessages, newMessage]);
           resolve();
         });
 
@@ -1118,6 +1116,7 @@ export default {
       'logOut',
     ]),
     ...mapMutations([
+      'setAllMessages',
       'setGlobalError',
       'setSelectedTime',
       'setSendMessageError',
@@ -1132,7 +1131,6 @@ export default {
       'setTempDecryptedFiles',
       'setMessages',
       'setLoading',
-      'setPrivateKey',
     ]),
   },
 };

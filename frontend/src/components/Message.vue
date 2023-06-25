@@ -1,22 +1,23 @@
 <template>
-  <div class="message pr-4 py-2 pb-4" :data-id="id">
+  <div
+    class="message mr-4"
+    :class="{ 'mt-4': content, 'mt-3': !content }"
+    :data-id="id"
+  >
     <div class="message__flex d-flex" :class="{ 'mb-3': !content }">
       <div
         v-if="interval"
-        class="expiration__progress__wrapper mr-4"
+        class="expiration__progress__wrapper d-inline-block mr-4"
         :style="{ 'margin-top': !content && '11px' }"
       >
-        <div style="position: relative">
-          <mdicon name="clock-outline" size="18" />
-          <v-progress-circular
-            :key="updateExpiration"
-            class="expiration__progress"
-            size="24"
-            :value="expireProgress"
-          >
-            <v-icon>mdi-folder</v-icon>
-          </v-progress-circular>
-        </div>
+        <mdicon name="clock-outline" size="18" />
+        <v-progress-circular
+          class="expiration__progress"
+          size="24"
+          :value="expireProgress"
+        >
+          <v-icon>mdi-folder</v-icon>
+        </v-progress-circular>
         <div class="expiration__tooltip">
           Auto-Destruction in about
           {{ $msToReadeableTime(expiration) }}
@@ -61,7 +62,7 @@
         </v-btn>
       </div>
     </div>
-    <div class="message__files">
+    <div v-if="filesCount" class="message__files">
       <v-fade-transition>
         <v-progress-linear
           v-if="
@@ -276,9 +277,8 @@ export default {
       ...this.message,
       language: navigator.language,
       applyingChanges: false,
-      updateExpiration: 0,
-      interval: null,
       expireProgress: 0,
+      interval: null,
       filesTypes: {
         'text/html': 'language-html5',
         'text/javascript': 'nodejs',
@@ -358,6 +358,7 @@ export default {
       };
     },
     ...mapState([
+      'allMessages',
       'selectedTime',
       'currentParentDownloadPercent',
       'loadingNewMessages',
@@ -386,13 +387,18 @@ export default {
         id,
       } = this;
 
+      const message = messages.find((message) => message.id == id);
+
+      if (!message) return clearTimeout(this.interval);
+
       const progress = $getExpireProgress(
         createdAt,
         new Date(createdAt).getTime() + expiration
       );
 
+      console.log(progress);
+
       this.expireProgress = progress;
-      this.updateExpiration = this.updateExpiration == 0 ? 1 : 0;
 
       if (this.expireProgress >= 100) {
         clearTimeout(this.interval);
@@ -509,6 +515,8 @@ export default {
         socket,
         loadingNewMessages,
         setLoadingNewMessages,
+        allMessages,
+        setAllMessages,
       } = this;
 
       const messageElement = [...document.querySelectorAll('.message')].find(
@@ -526,6 +534,7 @@ export default {
 
       if (unauthorized) return;
 
+      setAllMessages(allMessages.filter((message) => message.id != id));
       setMessages(messages.filter((message) => message.id != id));
 
       if (error) {
@@ -543,6 +552,7 @@ export default {
       socket.emit('removeMessage', id);
     },
     ...mapMutations([
+      'setAllMessages',
       'setSendMessageError',
       'setCurrentFetchedFile',
       'setLoadingNewMessages',
@@ -628,6 +638,10 @@ export default {
   }
 }
 
+.message:first-child {
+  margin-top: 0 !important;
+}
+
 @media screen and (max-width: 700px) {
   .message {
     &__flex {
@@ -691,9 +705,10 @@ export default {
   transition: opacity 0.3s ease, visibility 0.3s ease;
   position: absolute;
   font-size: 13px;
+  top: -15px;
+  left: 35px;
   background-color: #303030;
   border-radius: 10px;
-  top: 30px;
   width: 120px;
   padding: 10px;
   z-index: 9999;
