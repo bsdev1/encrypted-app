@@ -396,8 +396,6 @@ export default {
         new Date(createdAt).getTime() + expiration
       );
 
-      console.log(progress);
-
       this.expireProgress = progress;
 
       if (this.expireProgress >= 100) {
