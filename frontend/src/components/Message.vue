@@ -405,9 +405,14 @@ export default {
 
       const importedKey = await importKey();
 
-      let files = await handleFetchFiles({ messageId, importedKey });
+      let { files, unauthorized } = await handleFetchFiles({
+        messageId,
+        importedKey,
+      });
 
       setFetchingFiles({ type: 'multiple', running: false });
+
+      if (unauthorized) return;
 
       files = files.map((file) => ({ ...file, messageId }));
       this.files = [...this.files, ...files];
@@ -509,9 +514,11 @@ export default {
 
       this.applyingChanges = true;
 
-      const { error } = await handleRemoveMessage(id);
+      const { error, unauthorized } = await handleRemoveMessage(id);
 
       this.applyingChanges = false;
+
+      if (unauthorized) return;
 
       setMessages(messages.filter((message) => message.id != id));
 

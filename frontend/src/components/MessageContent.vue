@@ -107,12 +107,14 @@ export default {
 
       this.applyingChanges = true;
 
-      const { error } = await handleEditMessage({
+      const { error, unauthorized } = await handleEditMessage({
         id,
         editMessageContent: encrypt(editMessageContent, encryptKey),
       });
 
       this.applyingChanges = false;
+
+      if (unauthorized) return;
 
       if (error) return (this.editMessageError = error);
 

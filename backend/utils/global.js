@@ -1,6 +1,8 @@
 const { enableRegister } = process.env;
 const File = require('../models/file');
 const Message = require('../models/message');
+const fs = require('fs/promises');
+const fsDefault = require('fs');
 
 function isRegisterEnabled(_, res, next) {
   if (enableRegister == '0')

@@ -53,11 +53,13 @@ export default defineComponent({
 
       this.nukingMessages = true;
 
-      await handleNukeAllMessages();
-
-      this.$emit('nuked-messages');
+      const { unauthorized } = await handleNukeAllMessages();
 
       this.nukingMessages = false;
+
+      if (unauthorized) return;
+
+      this.$emit('nuked-messages');
     },
     ...mapMutations(['setNukeDialogOpen']),
     ...mapActions(['handleNukeAllMessages']),

@@ -200,7 +200,7 @@ const store = new Vuex.Store({
 
       router.push('/login');
 
-      return {};
+      return { unauthorized: true };
     },
     async handleRegister({ commit }, { username, password, token }) {
       const {
@@ -382,7 +382,7 @@ const store = new Vuex.Store({
 
       state.socket.off('chunk');
 
-      return state.tempDecryptedFiles;
+      return { files: state.tempDecryptedFiles };
     },
     async handleFetchFile(
       { state, commit, dispatch },
@@ -626,6 +626,7 @@ const store = new Vuex.Store({
       } = await request.patch(`/editMessage/${id}`, { editMessageContent });
 
       if (success == false) return dispatch('logOut');
+
       return { error };
     },
     async handleRemoveMessage({ commit, dispatch }, id) {
@@ -636,6 +637,7 @@ const store = new Vuex.Store({
       } = await request.delete(`/removeMessage/${id}`);
 
       if (success == false) return dispatch('logOut');
+
       return { error };
     },
   },

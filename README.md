@@ -16,35 +16,39 @@ LockGuard is a user-friendly app that lets you securely share encrypted messages
 
 To launch LockGuard, follow these steps:
 
-1. Open a terminal and navigate to the frontend folder.
+1. Make sure you have Node.js installed on your system. You can download it from [https://nodejs.org](https://nodejs.org).
 
-2. Run the following command to install the necessary dependencies:
+2. Open a terminal and navigate to the frontend folder.
+
+3. Run the following command to install the necessary dependencies:
 
    ```
    yarn install
    ```
 
-3. Start the Vue app by running the following command:
+   Note: If you don't have Yarn installed, you can install it globally by running `npm install -g yarn` before executing the above command.
+
+4. Start the Vue app by running the following command:
 
    ```
    yarn serve
    ```
 
-4. Open another terminal window and navigate to the backend folder.
+5. Open another terminal window and navigate to the backend folder.
 
-5. Run the following command to install the backend dependencies:
+6. Run the following command to install the backend dependencies:
 
    ```
    yarn install
    ```
 
-6. Start the backend server by running the following command:
+7. Start the backend server by running the following command:
 
    ```
    yarn dev
    ```
 
-7. Open your browser and visit [http://localhost:8080](http://localhost:8080) to view the application.
+8. Open your browser and visit [http://localhost:8080](http://localhost:8080) to view the application.
 
 ## Deployment 🌐
 
@@ -75,7 +79,7 @@ To deploy LockGuard to your hosting server, follow these steps:
 - Inside the **backend** folder, run the following commands to install the necessary dependencies and start the application:
 
   ```
-  yarn
+  yarn install
   ```
 
   ```

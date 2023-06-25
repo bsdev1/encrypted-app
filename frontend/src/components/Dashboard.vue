@@ -349,10 +349,13 @@ export default {
 
     this.loadingMessages = true;
 
-    const { messages, messagesCount: allMessagesLength } =
-      await handleGetMessages();
+    const {
+      messages,
+      messagesCount: allMessagesLength,
+      unauthorized,
+    } = await handleGetMessages();
 
-    if (!messages) return;
+    if (!messages || unauthorized) return (this.loadingMessages = false);
 
     if (!key || key.length < 43) {
       const AES_KEY = await crypto.subtle.generateKey(
@@ -457,11 +460,10 @@ export default {
 
         const nextPage = this.currentPage + 1;
 
-        const { isLastPagination, messages } = await handleGetMessages(
-          nextPage
-        );
+        const { isLastPagination, messages, unauthorized } =
+          await handleGetMessages(nextPage);
 
-        if (messages.length == 0) {
+        if (messages.length == 0 || unauthorized) {
           this.setLoadingNewMessages(false);
           return topObserver.disconnect();
         }
